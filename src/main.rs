@@ -9,12 +9,12 @@ fn main() -> anyhow::Result<()> {
     io::stdout().flush().unwrap();
 
     let mut buf = String::new();
-    let input = io::stdin()
-        .read_line(&mut buf)
-        .context("read user input into buf")?;
+    loop {
+        io::stdin()
+            .read_line(&mut buf)
+            .context("read user input into buf")?;
 
-    let com = buf.trim();
-    println!("{com}: command not found");
-
-    Ok(())
+        let com = buf.trim();
+        println!("{com}: command not found");
+    }
 }
