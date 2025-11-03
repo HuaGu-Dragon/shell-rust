@@ -20,7 +20,10 @@ fn main() -> anyhow::Result<()> {
             .read_line(&mut buf)
             .context("read user input into buf")?;
 
-        let com = buf.trim();
+        let (com, args) = buf
+            .trim()
+            .split_once(' ')
+            .context("split user input into command and arguments")?;
 
         let com = match com {
             "exit" => Command::Exit(0),
