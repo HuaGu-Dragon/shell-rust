@@ -6,6 +6,7 @@ use anyhow::Context;
 enum Command {
     Exit,
     Echo,
+    Type,
     NoOp,
 }
 
@@ -27,23 +28,34 @@ fn main() -> anyhow::Result<()> {
             None => (input, ""),
         };
 
-        let com = match com {
-            "exit" => Command::Exit,
-            "echo" => Command::Echo,
-            _ => {
-                println!("{com}: command not found");
-                Command::NoOp
-            }
-        };
+        let command = command_type(com);
 
-        match com {
-            Command::Exit => break,
-            Command::Echo => println!("{args}"),
-            Command::NoOp => {}
+        match command {
+            Some(Command::Echo) => println!("{}", args),
+            Some(Command::Exit) => break,
+            Some(Command::Type) => {
+                let command = command_type(args);
+                if command.is_some() {
+                    println!("{} is a shell builtin", args);
+                } else {
+                    println!("{}: not found", args);
+                }
+            }
+            Some(Command::NoOp) => {}
+            None => println!("{com}: command not found"),
         }
 
         buf.clear();
     }
 
     Ok(())
+}
+
+fn command_type(com: &str) -> Option<Command> {
+    match com {
+        "exit" => Some(Command::Exit),
+        "echo" => Some(Command::Echo),
+        "type" => Some(Command::Type),
+        _ => None,
+    }
 }
