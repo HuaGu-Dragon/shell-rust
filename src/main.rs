@@ -4,7 +4,8 @@ use std::io::{self, Write};
 use anyhow::Context;
 
 enum Command {
-    Exit(u8),
+    Exit,
+    Echo,
     NoOp,
 }
 
@@ -27,7 +28,8 @@ fn main() -> anyhow::Result<()> {
         };
 
         let com = match com {
-            "exit" => Command::Exit(0),
+            "exit" => Command::Exit,
+            "echo" => Command::Echo,
             _ => {
                 println!("{com}: command not found");
                 Command::NoOp
@@ -35,7 +37,8 @@ fn main() -> anyhow::Result<()> {
         };
 
         match com {
-            Command::Exit(code) => break,
+            Command::Exit => break,
+            Command::Echo => println!("{args}"),
             Command::NoOp => {}
         }
 
