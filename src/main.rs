@@ -10,11 +10,14 @@ fn main() -> anyhow::Result<()> {
     loop {
         print!("$ ");
         io::stdout().flush().unwrap();
+
         io::stdin()
             .read_line(&mut buf)
             .context("read user input into buf")?;
 
         let com = buf.trim();
         println!("{com}: command not found");
+
+        buf.clear();
     }
 }
