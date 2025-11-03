@@ -3,6 +3,11 @@ use std::io::{self, Write};
 
 use anyhow::Context;
 
+enum Command {
+    Exit(u8),
+    NoOp,
+}
+
 fn main() -> anyhow::Result<()> {
     // TODO: Uncomment the code below to pass the first stage
 
@@ -16,8 +21,22 @@ fn main() -> anyhow::Result<()> {
             .context("read user input into buf")?;
 
         let com = buf.trim();
-        println!("{com}: command not found");
+
+        let com = match com {
+            "exit" => Command::Exit(0),
+            _ => {
+                println!("{com}: command not found");
+                Command::NoOp
+            }
+        };
+
+        match com {
+            Command::Exit(code) => break,
+            Command::NoOp => {}
+        }
 
         buf.clear();
     }
+
+    Ok(())
 }
