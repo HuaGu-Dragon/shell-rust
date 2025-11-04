@@ -1,6 +1,5 @@
-#[allow(unused_imports)]
 use std::io::{self, Write};
-#[cfg(not(unix))]
+
 use std::path::Path;
 use std::path::PathBuf;
 
