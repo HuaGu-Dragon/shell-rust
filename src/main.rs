@@ -8,6 +8,8 @@ use anyhow::Context;
 
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
+#[cfg(unix)]
+use std::os::unix::process::CommandExt;
 
 enum Command {
     Exit,
@@ -39,13 +41,7 @@ fn main() -> anyhow::Result<()> {
 
         match command {
             Some(Command::Echo) => println!("{args}"),
-            Some(Command::Program(path)) => {
-                let mut child = std::process::Command::new(path)
-                    .args(args.split_whitespace())
-                    .spawn()
-                    .context("spawn child process")?;
-                child.wait().context("wait for child process")?;
-            }
+            Some(Command::Program(ref path)) => run_command(path, com, args)?,
             Some(Command::Exit) => break,
             Some(Command::Type) => {
                 let command = command_type(args);
@@ -101,4 +97,27 @@ fn is_executable(path: &PathBuf) -> bool {
 #[cfg(not(unix))]
 fn is_executable(path: &Path) -> bool {
     path.is_file()
+}
+
+#[cfg(not(unix))]
+fn run_command(path: &Path, _: &str, args: &str) -> anyhow::Result<()> {
+    let mut child = std::process::Command::new(path)
+        .args(args.split_whitespace())
+        .spawn()
+        .context("spawn child process")?;
+
+    child.wait().context("wait for child process")?;
+    Ok(())
+}
+
+#[cfg(unix)]
+fn run_command(path: &Path, com: &str, args: &str) -> anyhow::Result<()> {
+    let mut child = std::process::Command::new(path)
+        .arg0(com)
+        .args(args.split_whitespace())
+        .spawn()
+        .context("spawn child process")?;
+
+    child.wait().context("wait for child process")?;
+    Ok(())
 }
