@@ -217,7 +217,7 @@ impl<'de> Iterator for Parser<'de> {
                     self.start = 0;
 
                     if end != args.len()
-                        && let Some(b'\'') = args[end..].bytes().next()
+                        && matches!(args[end..].bytes().next(), Some(b'\'') | Some(b'"'))
                     {
                         arg.to_mut().push(self.next()?);
                         if let Some(next) = self.next() {
