@@ -43,7 +43,11 @@ fn main() -> anyhow::Result<()> {
         match command {
             Some(Command::Echo) => println!("{args}"),
             Some(Command::Cd) => {
-                let path = PathBuf::from(args);
+                let mut path = PathBuf::from(args);
+                if path.starts_with("~") {
+                    let home_dir = std::env::home_dir().context("get home dir")?;
+                    path = home_dir.join(path.strip_prefix("~").unwrap())
+                }
                 if path.is_absolute() {
                     if std::env::set_current_dir(&path).is_err() {
                         println!("cd: {}: No such file or directory", path.display())
@@ -51,7 +55,9 @@ fn main() -> anyhow::Result<()> {
                 } else {
                     let current_dir = std::env::current_dir().context("get current dir")?;
                     let new_dir = current_dir.join(path);
-                    std::env::set_current_dir(&new_dir).context("change directory")?;
+                    if std::env::set_current_dir(&new_dir).is_err() {
+                        println!("cd: {}: No such file or directory", new_dir.display())
+                    }
                 }
             }
             Some(Command::Pwd) => println!(
