@@ -174,12 +174,18 @@ impl<'de> Iterator for Parser<'de> {
             match args.bytes().next()? {
                 b'"' => {
                     let offset = '"'.len_utf8();
-                    let end = args[offset..].find('"')? + offset;
-                    let arg: Cow<'_, OsStr> = Cow::Borrowed(args[offset..end].as_ref());
+                    let mut end = args[offset..].find('"')? + offset;
+                    let mut arg: Cow<'_, OsStr> = Cow::Borrowed(args[offset..end].as_ref());
+
+                    while let Some(b'"') = args[end + 1..].bytes().next() {
+                        let start = end + 1 + offset;
+                        end += args[end + offset + 1..].find('"')? + offset + 1;
+
+                        arg.to_mut().push(&args[start..end]);
+                    }
 
                     self.args = &args[end + 1..];
                     self.start = 0;
-
                     if arg.is_empty() {
                         continue;
                     }
