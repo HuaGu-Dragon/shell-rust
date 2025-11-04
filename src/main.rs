@@ -14,6 +14,7 @@ enum Command {
     Exit,
     Echo,
     Pwd,
+    Cd,
     Type,
     Program(PathBuf),
     NoOp,
@@ -41,6 +42,18 @@ fn main() -> anyhow::Result<()> {
 
         match command {
             Some(Command::Echo) => println!("{args}"),
+            Some(Command::Cd) => {
+                let path = PathBuf::from(args);
+                if path.is_absolute() {
+                    if std::env::set_current_dir(&path).is_err() {
+                        println!("cd: {}: No such file or directory", path.display())
+                    }
+                } else {
+                    let current_dir = std::env::current_dir().context("get current dir")?;
+                    let new_dir = current_dir.join(path);
+                    std::env::set_current_dir(&new_dir).context("change directory")?;
+                }
+            }
             Some(Command::Pwd) => println!(
                 "{}",
                 std::env::current_dir()
@@ -71,6 +84,7 @@ fn command_type(com: &str) -> Option<Command> {
     match com {
         "exit" => Some(Command::Exit),
         "echo" => Some(Command::Echo),
+        "cd" => Some(Command::Cd),
         "pwd" => Some(Command::Pwd),
         "type" => Some(Command::Type),
         _ => std::env::var_os("PATH").and_then(|paths| {
