@@ -39,7 +39,7 @@ fn main() -> anyhow::Result<()> {
             Some(Command::Type) => {
                 let command = command_type(args);
                 match command {
-                    Some(Command::Path(ref path)) => println!("{args} is {path:?}"),
+                    Some(Command::Path(ref path)) => println!("{args} is {}", path.display()),
                     Some(_) => println!("{args} is a shell builtin"),
                     None => println!("{args}: not found"),
                 }
