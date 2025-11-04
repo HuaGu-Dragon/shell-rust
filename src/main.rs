@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+use std::ffi::OsStr;
 use std::io::{self, Write};
 
 use std::path::Path;
@@ -17,7 +19,6 @@ enum Command {
     Cd,
     Type,
     Program(PathBuf),
-    NoOp,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -41,7 +42,12 @@ fn main() -> anyhow::Result<()> {
         let command = command_type(com);
 
         match command {
-            Some(Command::Echo) => println!("{args}"),
+            Some(Command::Echo) => {
+                for arg in Parser::new(args) {
+                    print!("{} ", arg.to_string_lossy());
+                }
+                println!();
+            }
             Some(Command::Cd) => {
                 let mut path = PathBuf::from(args);
                 if path.starts_with("~") {
@@ -76,7 +82,6 @@ fn main() -> anyhow::Result<()> {
                     None => println!("{args}: not found"),
                 }
             }
-            Some(Command::NoOp) => {}
             None => println!("{com}: command not found"),
         }
 
@@ -129,7 +134,7 @@ fn is_executable(path: &Path) -> bool {
 #[cfg(not(unix))]
 fn run_command(path: &Path, _: &str, args: &str) -> anyhow::Result<()> {
     let mut child = std::process::Command::new(path)
-        .args(args.split_whitespace())
+        .args(Parser::new(args))
         .spawn()
         .context("spawn child process")?;
 
@@ -147,4 +152,73 @@ fn run_command(path: &Path, com: &str, args: &str) -> anyhow::Result<()> {
 
     child.wait().context("wait for child process")?;
     Ok(())
+}
+
+struct Parser<'de> {
+    args: &'de str,
+    start: usize,
+}
+
+impl<'de> Parser<'de> {
+    fn new(args: &'de str) -> Self {
+        Parser { args, start: 0 }
+    }
+}
+
+impl<'de> Iterator for Parser<'de> {
+    type Item = Cow<'de, OsStr>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            let args = &self.args[self.start..];
+            match args.bytes().next()? {
+                b'\'' => {
+                    let offset = '\''.len_utf8();
+                    let mut end = args[offset..].find('\'')? + offset;
+                    let mut arg: Cow<'_, OsStr> = Cow::Borrowed(args[offset..end].as_ref());
+
+                    while let Some(b'\'') = args[end + 1..].bytes().next() {
+                        let start = end + 1 + offset;
+                        end += args[end + offset + 1..].find('\'')? + offset + 1;
+
+                        arg.to_mut().push(&args[start..end]);
+                    }
+
+                    self.args = &args[end + 1..];
+                    self.start = 0;
+
+                    break Some(arg);
+                }
+                b' ' => self.start += 1,
+                _ => {
+                    let end = args.find([' ', '\'']).unwrap_or(args.len());
+                    let mut arg: Cow<'_, OsStr> = Cow::Borrowed(args[..end].as_ref());
+
+                    self.args = &args[end..];
+                    self.start = 0;
+
+                    if end != args.len()
+                        && let Some(b'\'') = args[end..].bytes().next()
+                    {
+                        arg.to_mut().push(self.next()?);
+                        if let Some(next) = self.next() {
+                            arg.to_mut().push(next);
+                        }
+                    }
+
+                    break Some(arg);
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn test_parser() {
+    let mut parser = Parser::new("arg1 'arg2' arg3 'ar''g''4'");
+    assert_eq!(parser.next().as_deref(), Some(OsStr::new("arg1")));
+    assert_eq!(parser.next().as_deref(), Some(OsStr::new("arg2")));
+    assert_eq!(parser.next().as_deref(), Some(OsStr::new("arg3")));
+    assert_eq!(parser.next().as_deref(), Some(OsStr::new("arg4")));
+    assert_eq!(parser.next(), None);
 }
