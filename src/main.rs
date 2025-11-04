@@ -172,6 +172,16 @@ impl<'de> Iterator for Parser<'de> {
         loop {
             let args = &self.args[self.start..];
             match args.bytes().next()? {
+                b'"' => {
+                    let offset = '"'.len_utf8();
+                    let end = args[offset..].find('"')? + offset;
+                    let arg: Cow<'_, OsStr> = Cow::Borrowed(args[offset..end].as_ref());
+
+                    self.args = &args[end + 1..];
+                    self.start = 0;
+
+                    break Some(arg);
+                }
                 b'\'' => {
                     let offset = '\''.len_utf8();
                     let mut end = args[offset..].find('\'')? + offset;
@@ -191,7 +201,7 @@ impl<'de> Iterator for Parser<'de> {
                 }
                 b' ' => self.start += 1,
                 _ => {
-                    let end = args.find([' ', '\'']).unwrap_or(args.len());
+                    let end = args.find([' ', '\'', '"']).unwrap_or(args.len());
                     let mut arg: Cow<'_, OsStr> = Cow::Borrowed(args[..end].as_ref());
 
                     self.args = &args[end..];
