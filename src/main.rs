@@ -146,7 +146,7 @@ fn run_command(path: &Path, _: &str, args: &str) -> anyhow::Result<()> {
 fn run_command(path: &Path, com: &str, args: &str) -> anyhow::Result<()> {
     let mut child = std::process::Command::new(path)
         .arg0(com)
-        .args(Parer::new(args))
+        .args(Parser::new(args))
         .spawn()
         .context("spawn child process")?;
 
