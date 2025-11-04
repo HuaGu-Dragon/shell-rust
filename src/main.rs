@@ -1,8 +1,13 @@
 #[allow(unused_imports)]
 use std::io::{self, Write};
+#[cfg(not(unix))]
+use std::path::Path;
 use std::path::PathBuf;
 
 use anyhow::Context;
+
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
 
 enum Command {
     Exit,
@@ -63,16 +68,31 @@ fn command_type(com: &str) -> Option<Command> {
             for path in std::env::split_paths(&paths) {
                 if path.is_dir() {
                     for entry in path.read_dir().ok()?.flatten() {
-                        if com == entry.file_name() {
+                        if com == entry.file_name() && is_executable(&entry.path()) {
                             return Some(Command::Path(entry.path()));
                         }
                     }
                 }
-                if path.is_file() && path.file_name().unwrap().to_str().unwrap() == com {
+                if is_executable(&path) && path.file_name()? == com {
                     return Some(Command::Path(path));
                 }
             }
             None
         }),
     }
+}
+
+#[cfg(unix)]
+fn is_executable(path: &PathBuf) -> bool {
+    if let Ok(metadata) = path.metadata() {
+        let permissions = metadata.permissions();
+        permissions.mode() & 0o111 != 0
+    } else {
+        false
+    }
+}
+
+#[cfg(not(unix))]
+fn is_executable(path: &Path) -> bool {
+    path.is_file()
 }
