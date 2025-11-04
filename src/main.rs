@@ -1,5 +1,6 @@
 #[allow(unused_imports)]
 use std::io::{self, Write};
+use std::path::PathBuf;
 
 use anyhow::Context;
 
@@ -7,6 +8,7 @@ enum Command {
     Exit,
     Echo,
     Type,
+    Path(PathBuf),
     NoOp,
 }
 
@@ -31,14 +33,15 @@ fn main() -> anyhow::Result<()> {
         let command = command_type(com);
 
         match command {
-            Some(Command::Echo) => println!("{}", args),
+            Some(Command::Echo) => println!("{args}"),
+            Some(Command::Path(_)) => unimplemented!(),
             Some(Command::Exit) => break,
             Some(Command::Type) => {
                 let command = command_type(args);
-                if command.is_some() {
-                    println!("{} is a shell builtin", args);
-                } else {
-                    println!("{}: not found", args);
+                match command {
+                    Some(Command::Path(ref path)) => println!("{args} is {path:?}"),
+                    Some(_) => println!("{args} is a shell builtin"),
+                    None => println!("{args}: not found"),
                 }
             }
             Some(Command::NoOp) => {}
@@ -56,6 +59,20 @@ fn command_type(com: &str) -> Option<Command> {
         "exit" => Some(Command::Exit),
         "echo" => Some(Command::Echo),
         "type" => Some(Command::Type),
-        _ => None,
+        _ => std::env::var_os("PATH").and_then(|paths| {
+            for path in std::env::split_paths(&paths) {
+                if path.is_dir() {
+                    for entry in path.read_dir().ok()?.flatten() {
+                        if com == entry.file_name() {
+                            return Some(Command::Path(entry.path()));
+                        }
+                    }
+                }
+                if path.is_file() && path.file_name().unwrap().to_str().unwrap() == com {
+                    return Some(Command::Path(path));
+                }
+            }
+            None
+        }),
     }
 }
