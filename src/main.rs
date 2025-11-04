@@ -13,6 +13,7 @@ use std::os::unix::process::CommandExt;
 enum Command {
     Exit,
     Echo,
+    Pwd,
     Type,
     Program(PathBuf),
     NoOp,
@@ -40,6 +41,12 @@ fn main() -> anyhow::Result<()> {
 
         match command {
             Some(Command::Echo) => println!("{args}"),
+            Some(Command::Pwd) => println!(
+                "{}",
+                std::env::current_dir()
+                    .context("get current dir")?
+                    .display()
+            ),
             Some(Command::Program(ref path)) => run_command(path, com, args)?,
             Some(Command::Exit) => break,
             Some(Command::Type) => {
@@ -64,6 +71,7 @@ fn command_type(com: &str) -> Option<Command> {
     match com {
         "exit" => Some(Command::Exit),
         "echo" => Some(Command::Echo),
+        "pwd" => Some(Command::Pwd),
         "type" => Some(Command::Type),
         _ => std::env::var_os("PATH").and_then(|paths| {
             for path in std::env::split_paths(&paths) {
