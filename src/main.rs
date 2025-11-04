@@ -13,7 +13,7 @@ enum Command {
     Exit,
     Echo,
     Type,
-    Path(PathBuf),
+    Program(PathBuf),
     NoOp,
 }
 
@@ -39,12 +39,18 @@ fn main() -> anyhow::Result<()> {
 
         match command {
             Some(Command::Echo) => println!("{args}"),
-            Some(Command::Path(_)) => unimplemented!(),
+            Some(Command::Program(path)) => {
+                let mut child = std::process::Command::new(path)
+                    .args(args.split_whitespace())
+                    .spawn()
+                    .context("spawn child process")?;
+                child.wait().context("wait for child process")?;
+            }
             Some(Command::Exit) => break,
             Some(Command::Type) => {
                 let command = command_type(args);
                 match command {
-                    Some(Command::Path(ref path)) => println!("{args} is {}", path.display()),
+                    Some(Command::Program(ref path)) => println!("{args} is {}", path.display()),
                     Some(_) => println!("{args} is a shell builtin"),
                     None => println!("{args}: not found"),
                 }
@@ -69,12 +75,12 @@ fn command_type(com: &str) -> Option<Command> {
                 if path.is_dir() {
                     for entry in path.read_dir().ok()?.flatten() {
                         if com == entry.file_name() && is_executable(&entry.path()) {
-                            return Some(Command::Path(entry.path()));
+                            return Some(Command::Program(entry.path()));
                         }
                     }
                 }
                 if is_executable(&path) && path.file_name()? == com {
-                    return Some(Command::Path(path));
+                    return Some(Command::Program(path));
                 }
             }
             None
