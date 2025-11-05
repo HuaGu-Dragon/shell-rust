@@ -32,7 +32,7 @@ fn main() -> anyhow::Result<()> {
             .read_line(&mut buf)
             .context("read user input into buf")?;
 
-        let mut input = Shlex::new(&buf);
+        let mut input = Shlex::new(buf.trim());
         let com = input.next().context("parsing command")?;
         let mut args = input;
 
