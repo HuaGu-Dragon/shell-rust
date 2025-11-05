@@ -32,23 +32,21 @@ fn main() -> anyhow::Result<()> {
             .read_line(&mut buf)
             .context("read user input into buf")?;
 
-        let input = buf.trim();
-        let (com, args) = match input.split_once(' ') {
-            Some((com, args)) => (com.trim(), args.trim()),
-            None => (input, ""),
-        };
+        let mut input = Shlex::new(&buf);
+        let com = input.next().context("parsing command")?;
+        let mut args = input;
 
-        let command = command_type(com);
+        let command = command_type(&com);
 
         match command {
             Some(Command::Echo) => {
-                for arg in Shlex::new(args) {
+                for arg in args {
                     print!("{arg} ");
                 }
                 println!();
             }
             Some(Command::Cd) => {
-                let mut path = PathBuf::from(args);
+                let mut path = PathBuf::from(&args.next().context("parsing path")?);
                 if path.starts_with("~") {
                     let home_dir = std::env::home_dir().context("get home dir")?;
                     path = home_dir.join(path.strip_prefix("~").unwrap())
@@ -71,14 +69,15 @@ fn main() -> anyhow::Result<()> {
                     .context("get current dir")?
                     .display()
             ),
-            Some(Command::Program(ref path)) => run_command(path, com, args)?,
+            Some(Command::Program(ref path)) => run_command(path, &com, args)?,
             Some(Command::Exit) => break,
             Some(Command::Type) => {
-                let command = command_type(args);
+                let name = &args.next().context("parsing arg")?;
+                let command = command_type(name);
                 match command {
-                    Some(Command::Program(ref path)) => println!("{args} is {}", path.display()),
-                    Some(_) => println!("{args} is a shell builtin"),
-                    None => println!("{args}: not found"),
+                    Some(Command::Program(ref path)) => println!("{name} is {}", path.display()),
+                    Some(_) => println!("{name} is a shell builtin"),
+                    None => println!("{name}: not found"),
                 }
             }
             None => println!("{com}: command not found"),
@@ -131,9 +130,9 @@ fn is_executable(path: &Path) -> bool {
 }
 
 #[cfg(not(unix))]
-fn run_command(path: &Path, _: &str, args: &str) -> anyhow::Result<()> {
+fn run_command(path: &Path, _: &str, args: Shlex) -> anyhow::Result<()> {
     let mut child = std::process::Command::new(path)
-        .args(Shlex::new(args))
+        .args(args)
         .spawn()
         .context("spawn child process")?;
 
@@ -142,10 +141,10 @@ fn run_command(path: &Path, _: &str, args: &str) -> anyhow::Result<()> {
 }
 
 #[cfg(unix)]
-fn run_command(path: &Path, com: &str, args: &str) -> anyhow::Result<()> {
+fn run_command(path: &Path, com: &str, args: Shlex) -> anyhow::Result<()> {
     let mut child = std::process::Command::new(path)
         .arg0(com)
-        .args(Shlex::new(args))
+        .args(args)
         .spawn()
         .context("spawn child process")?;
 
