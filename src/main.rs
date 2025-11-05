@@ -181,7 +181,7 @@ impl Iterator for &mut Parser<'_> {
     fn next(&mut self) -> Option<Self::Item> {
         let mut next = self.shlex.next()?;
 
-        if next == ">" {
+        if next == ">" || next == "1>" {
             self.stdout = Some(File::create(self.shlex.next()?).unwrap());
             next = self.shlex.next()?;
         }
