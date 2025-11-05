@@ -1,3 +1,4 @@
+use std::fs::File;
 use std::io::{self, Write};
 
 use std::path::Path;
@@ -69,7 +70,7 @@ fn main() -> anyhow::Result<()> {
                     .context("get current dir")?
                     .display()
             ),
-            Some(Command::Program(ref path)) => run_command(path, &com, args)?,
+            Some(Command::Program(ref path)) => run_command(path, &com, Parser::new(args))?,
             Some(Command::Exit) => break,
             Some(Command::Type) => {
                 let name = &args.next().context("parsing arg")?;
@@ -130,11 +131,15 @@ fn is_executable(path: &Path) -> bool {
 }
 
 #[cfg(not(unix))]
-fn run_command(path: &Path, _: &str, args: Shlex) -> anyhow::Result<()> {
-    let mut child = std::process::Command::new(path)
-        .args(args)
-        .spawn()
-        .context("spawn child process")?;
+fn run_command(path: &Path, _: &str, mut args: Parser) -> anyhow::Result<()> {
+    let mut settings = std::process::Command::new(path);
+    settings.args(&mut args);
+
+    if let Some(stdin) = args.stdin {
+        settings.stdin(stdin);
+    }
+
+    let mut child = settings.spawn().context("spawn child process")?;
 
     child.wait().context("wait for child process")?;
     Ok(())
@@ -142,14 +147,47 @@ fn run_command(path: &Path, _: &str, args: Shlex) -> anyhow::Result<()> {
 
 #[cfg(unix)]
 fn run_command(path: &Path, com: &str, args: Shlex) -> anyhow::Result<()> {
-    let mut child = std::process::Command::new(path)
-        .arg0(com)
-        .args(args)
-        .spawn()
-        .context("spawn child process")?;
+    let mut settings = std::process::Command::new(path);
+    settings.arg0(com);
+    settings.args(&mut args);
+
+    if let Some(stdin) = args.stdin {
+        settings.stdin(stdin);
+    }
+
+    let mut child = settings.spawn().context("spawn child process")?;
 
     child.wait().context("wait for child process")?;
     Ok(())
+}
+
+struct Parser<'de> {
+    stdin: Option<File>,
+    shlex: Shlex<'de>,
+}
+
+impl<'de> Parser<'de> {
+    fn new(input: Shlex<'de>) -> Self {
+        Self {
+            stdin: None,
+            shlex: input,
+        }
+    }
+}
+
+impl Iterator for &mut Parser<'_> {
+    type Item = String;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let mut next = self.shlex.next()?;
+
+        if next == ">" {
+            self.stdin = Some(File::create(self.shlex.next()?).unwrap());
+            next = self.shlex.next()?;
+        }
+
+        Some(next)
+    }
 }
 
 #[test]
