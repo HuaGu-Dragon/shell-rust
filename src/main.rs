@@ -135,8 +135,8 @@ fn run_command(path: &Path, _: &str, mut args: Parser) -> anyhow::Result<()> {
     let mut settings = std::process::Command::new(path);
     settings.args(&mut args);
 
-    if let Some(stdin) = args.stdin {
-        settings.stdin(stdin);
+    if let Some(stdout) = args.stdout {
+        settings.stdout(stdout);
     }
 
     let mut child = settings.spawn().context("spawn child process")?;
@@ -151,8 +151,8 @@ fn run_command(path: &Path, com: &str, mut args: Parser) -> anyhow::Result<()> {
     settings.arg0(com);
     settings.args(&mut args);
 
-    if let Some(stdin) = args.stdin {
-        settings.stdin(stdin);
+    if let Some(stdout) = args.stdout {
+        settings.stdout(stdout);
     }
 
     let mut child = settings.spawn().context("spawn child process")?;
@@ -162,14 +162,14 @@ fn run_command(path: &Path, com: &str, mut args: Parser) -> anyhow::Result<()> {
 }
 
 struct Parser<'de> {
-    stdin: Option<File>,
+    stdout: Option<File>,
     shlex: Shlex<'de>,
 }
 
 impl<'de> Parser<'de> {
     fn new(input: Shlex<'de>) -> Self {
         Self {
-            stdin: None,
+            stdout: None,
             shlex: input,
         }
     }
@@ -182,7 +182,7 @@ impl Iterator for &mut Parser<'_> {
         let mut next = self.shlex.next()?;
 
         if next == ">" {
-            self.stdin = Some(File::create(self.shlex.next()?).unwrap());
+            self.stdout = Some(File::create(self.shlex.next()?).unwrap());
             next = self.shlex.next()?;
         }
 
