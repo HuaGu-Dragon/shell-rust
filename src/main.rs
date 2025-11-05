@@ -146,7 +146,7 @@ fn run_command(path: &Path, _: &str, mut args: Parser) -> anyhow::Result<()> {
 }
 
 #[cfg(unix)]
-fn run_command(path: &Path, com: &str, args: Shlex) -> anyhow::Result<()> {
+fn run_command(path: &Path, com: &str, args: Parser) -> anyhow::Result<()> {
     let mut settings = std::process::Command::new(path);
     settings.arg0(com);
     settings.args(&mut args);
