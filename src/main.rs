@@ -42,7 +42,8 @@ fn main() -> anyhow::Result<()> {
         match command {
             Some(Command::Echo) => {
                 let mut args = Parser::new(args);
-                let arg = args.collect::<Vec<_>>().join(" ");
+                let mut arg = args.collect::<Vec<_>>().join(" ");
+                arg.push('\n');
                 if let Some(mut stdin) = args.stdout {
                     std::io::copy(&mut Cursor::new(arg), &mut stdin)
                         .context("stream echo to file")?;
