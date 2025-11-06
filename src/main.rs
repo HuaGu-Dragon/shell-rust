@@ -1,5 +1,5 @@
 use std::fs::File;
-use std::io::{self, Cursor, Write};
+use std::io::{self, Write};
 
 use std::path::Path;
 use std::path::PathBuf;
@@ -44,7 +44,7 @@ fn main() -> anyhow::Result<()> {
                 let mut args = Parser::new(args);
                 let arg = args.collect::<Vec<_>>().join(" ");
                 if let Some(mut stdin) = args.stdout {
-                    writeln!(stdin, "{arg}").context("write to file")?;
+                    writeln!(&mut stdin, "{arg}").context("write to file")?;
                 } else {
                     print!("{}", arg);
                 }
