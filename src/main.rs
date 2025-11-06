@@ -48,7 +48,7 @@ fn main() -> anyhow::Result<()> {
                     std::io::copy(&mut Cursor::new(arg), &mut stdin)
                         .context("stream echo to file")?;
                 } else {
-                    println!("{}", arg);
+                    print!("{}", arg);
                 }
             }
             Some(Command::Cd) => {
