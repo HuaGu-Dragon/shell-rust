@@ -46,7 +46,7 @@ fn main() -> anyhow::Result<()> {
                 if let Some(mut stdin) = args.stdout {
                     writeln!(&mut stdin, "{arg}").context("write to file")?;
                 } else {
-                    print!("{}", arg);
+                    println!("{}", arg);
                 }
             }
             Some(Command::Cd) => {
