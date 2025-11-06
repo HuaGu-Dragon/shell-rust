@@ -42,11 +42,9 @@ fn main() -> anyhow::Result<()> {
         match command {
             Some(Command::Echo) => {
                 let mut args = Parser::new(args);
-                let mut arg = args.collect::<Vec<_>>().join(" ");
-                arg.push('\n');
+                let arg = args.collect::<Vec<_>>().join(" ");
                 if let Some(mut stdin) = args.stdout {
-                    std::io::copy(&mut Cursor::new(arg), &mut stdin)
-                        .context("stream echo to file")?;
+                    writeln!(stdin, "{arg}").context("write to file")?;
                 } else {
                     print!("{}", arg);
                 }
@@ -144,6 +142,10 @@ fn run_command(path: &Path, _: &str, mut args: Parser) -> anyhow::Result<()> {
         settings.stdout(stdout);
     }
 
+    if let Some(stderr) = args.stderr {
+        settings.stderr(stderr);
+    }
+
     let mut child = settings.spawn().context("spawn child process")?;
 
     child.wait().context("wait for child process")?;
@@ -160,6 +162,10 @@ fn run_command(path: &Path, com: &str, mut args: Parser) -> anyhow::Result<()> {
         settings.stdout(stdout);
     }
 
+    if let Some(stderr) = args.stderr {
+        settings.stderr(stderr);
+    }
+
     let mut child = settings.spawn().context("spawn child process")?;
 
     child.wait().context("wait for child process")?;
@@ -168,6 +174,7 @@ fn run_command(path: &Path, com: &str, mut args: Parser) -> anyhow::Result<()> {
 
 struct Parser<'de> {
     stdout: Option<File>,
+    stderr: Option<File>,
     shlex: Shlex<'de>,
 }
 
@@ -175,6 +182,7 @@ impl<'de> Parser<'de> {
     fn new(input: Shlex<'de>) -> Self {
         Self {
             stdout: None,
+            stderr: None,
             shlex: input,
         }
     }
@@ -188,6 +196,9 @@ impl Iterator for &mut Parser<'_> {
 
         if next == ">" || next == "1>" {
             self.stdout = Some(File::create(self.shlex.next()?).unwrap());
+            next = self.shlex.next()?;
+        } else if next == "2>" {
+            self.stderr = Some(File::create(self.shlex.next()?).unwrap());
             next = self.shlex.next()?;
         }
 
