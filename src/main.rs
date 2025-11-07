@@ -46,7 +46,7 @@ fn main() -> anyhow::Result<()> {
                 if let Some(mut stdin) = args.stdout {
                     writeln!(&mut stdin, "{arg}").context("write to file")?;
                 } else {
-                    println!("{}", arg);
+                    println!("{arg}");
                 }
             }
             Some(Command::Cd) => {
@@ -104,7 +104,9 @@ fn command_type(com: &str) -> Option<Command> {
             for path in std::env::split_paths(&paths) {
                 if path.is_dir() {
                     for entry in path.read_dir().ok()?.flatten() {
-                        if com == entry.file_name() && is_executable(&entry.path()) {
+                        if entry.path().file_stem() == Some(com.as_ref())
+                            && is_executable(&entry.path())
+                        {
                             return Some(Command::Program(entry.path()));
                         }
                     }
@@ -194,12 +196,21 @@ impl Iterator for &mut Parser<'_> {
     fn next(&mut self) -> Option<Self::Item> {
         let mut next = self.shlex.next()?;
 
+        // TODO: Handle error
         if next == ">" || next == "1>" {
             self.stdout = Some(File::create(self.shlex.next()?).unwrap());
             next = self.shlex.next()?;
         } else if next == "2>" {
             self.stderr = Some(File::create(self.shlex.next()?).unwrap());
             next = self.shlex.next()?;
+        } else if next == ">>" || next == "1>>" {
+            self.stdout = Some(
+                File::options()
+                    .append(true)
+                    .create(true)
+                    .open(self.shlex.next()?)
+                    .unwrap(),
+            )
         }
 
         Some(next)
