@@ -210,7 +210,8 @@ impl Iterator for &mut Parser<'_> {
                     .create(true)
                     .open(self.shlex.next()?)
                     .unwrap(),
-            )
+            );
+            next = self.shlex.next()?;
         }
 
         Some(next)
