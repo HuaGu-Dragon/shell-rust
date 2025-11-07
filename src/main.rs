@@ -212,6 +212,15 @@ impl Iterator for &mut Parser<'_> {
                     .unwrap(),
             );
             next = self.shlex.next()?;
+        } else if next == "2>>" {
+            self.stderr = Some(
+                File::options()
+                    .append(true)
+                    .create(true)
+                    .open(self.shlex.next()?)
+                    .unwrap(),
+            );
+            next = self.shlex.next()?;
         }
 
         Some(next)
