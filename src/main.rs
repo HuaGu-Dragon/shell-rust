@@ -1,10 +1,15 @@
 use std::fs::File;
-use std::io::{self, Write};
+use std::io::Write;
 
 use std::path::Path;
 use std::path::PathBuf;
 
 use anyhow::Context;
+use rustyline::completion::Completer;
+use rustyline::highlight::Highlighter;
+use rustyline::hint::Hinter;
+use rustyline::validate::Validator;
+use rustyline::{Editor, Helper};
 use shlex::Shlex;
 
 #[cfg(unix)]
@@ -21,19 +26,55 @@ enum Command {
     Program(PathBuf),
 }
 
+struct ShellHelper;
+
+impl Hinter for ShellHelper {
+    type Hint = String;
+}
+
+impl Validator for ShellHelper {}
+
+impl Highlighter for ShellHelper {}
+
+impl Helper for ShellHelper {}
+
+impl Completer for ShellHelper {
+    type Candidate = String;
+    // TODO: let the implementers choose/find word boundaries ??? => Lexer
+
+    /// Takes the currently edited `line` with the cursor `pos`ition and
+    /// returns the start position and the completion candidates for the
+    /// partial word to be completed.
+    ///
+    /// `("ls /usr/loc", 11)` => `Ok((3, vec!["/usr/local/"]))`
+    fn complete(
+        &self, // FIXME should be `&mut self`
+        line: &str,
+        pos: usize,
+        _ctx: &rustyline::Context<'_>,
+    ) -> rustyline::Result<(usize, Vec<Self::Candidate>)> {
+        let commands = ["echo", "exit"];
+        Ok((
+            0,
+            commands
+                .iter()
+                .filter(|c| c.starts_with(&line[..pos]))
+                .map(|c| c.to_string())
+                .collect(),
+        ))
+    }
+}
+
 fn main() -> anyhow::Result<()> {
-    // TODO: Uncomment the code below to pass the first stage
+    let mut rl = Editor::new().context("create rustyline instance")?;
 
-    let mut buf = String::new();
+    let h = ShellHelper;
+    rl.set_helper(Some(h));
+
     loop {
-        print!("$ ");
-        io::stdout().flush().unwrap();
+        let readline = rl.readline("$ ").context("read user input")?;
 
-        io::stdin()
-            .read_line(&mut buf)
-            .context("read user input into buf")?;
-
-        let mut input = Shlex::new(buf.trim());
+        let mut input = Shlex::new(readline.trim());
         let com = input.next().context("parsing command")?;
         let mut args = input;
 
@@ -86,8 +127,6 @@ fn main() -> anyhow::Result<()> {
             }
             None => println!("{com}: command not found"),
         }
-
-        buf.clear();
     }
 
     Ok(())
