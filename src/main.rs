@@ -53,7 +53,7 @@ impl Completer for ShellHelper {
         pos: usize,
         _ctx: &rustyline::Context<'_>,
     ) -> rustyline::Result<(usize, Vec<Self::Candidate>)> {
-        let commands = ["echo", "exit"];
+        let commands = ["echo ", "exit "];
         Ok((
             0,
             commands
