@@ -1,11 +1,15 @@
+use std::borrow::Cow;
 use std::fs::File;
 use std::io::Write;
 
 use std::path::Path;
 use std::path::PathBuf;
+use std::sync::LazyLock;
 
 use anyhow::Context;
 use rustyline::completion::Completer;
+use rustyline::completion::FilenameCompleter;
+use rustyline::completion::Pair;
 use rustyline::highlight::Highlighter;
 use rustyline::hint::Hinter;
 use rustyline::validate::Validator;
@@ -17,6 +21,31 @@ use std::os::unix::fs::PermissionsExt;
 #[cfg(unix)]
 use std::os::unix::process::CommandExt;
 
+static PROGRAMS: LazyLock<Vec<String>> = LazyLock::new(|| {
+    let mut programs = Vec::new();
+    std::env::var_os("PATH").iter().for_each(|paths| {
+        for path in std::env::split_paths(&paths) {
+            if path.is_dir()
+                && let Ok(dir) = path.read_dir()
+            {
+                for entry in dir.flatten() {
+                    if let Some(program) = entry.path().file_stem()
+                        && is_executable(&entry.path())
+                    {
+                        programs.push(program.to_string_lossy().into());
+                    }
+                }
+            }
+            if let Some(program) = path.as_path().file_stem()
+                && is_executable(&path)
+            {
+                programs.push(program.to_string_lossy().into());
+            }
+        }
+    });
+    programs
+});
+
 enum Command {
     Exit,
     Echo,
@@ -26,7 +55,9 @@ enum Command {
     Program(PathBuf),
 }
 
-struct ShellHelper;
+struct ShellHelper {
+    completer: FilenameCompleter,
+}
 
 impl Hinter for ShellHelper {
     type Hint = String;
@@ -39,7 +70,7 @@ impl Highlighter for ShellHelper {}
 impl Helper for ShellHelper {}
 
 impl Completer for ShellHelper {
-    type Candidate = String;
+    type Candidate = Pair;
     // TODO: let the implementers choose/find word boundaries ??? => Lexer
 
     /// Takes the currently edited `line` with the cursor `pos`ition and
@@ -51,24 +82,33 @@ impl Completer for ShellHelper {
         &self, // FIXME should be `&mut self`
         line: &str,
         pos: usize,
-        _ctx: &rustyline::Context<'_>,
+        ctx: &rustyline::Context<'_>,
     ) -> rustyline::Result<(usize, Vec<Self::Candidate>)> {
-        let commands = ["echo ", "exit "];
-        Ok((
-            0,
-            commands
-                .iter()
-                .filter(|c| c.starts_with(&line[..pos]))
-                .map(|c| c.to_string())
-                .collect(),
-        ))
+        let mut commands = vec![String::from("echo"), String::from("exit")];
+        commands.extend_from_slice(PROGRAMS.as_slice());
+
+        let com = commands
+            .into_iter()
+            .filter(|c| c.starts_with(&line[..pos]))
+            .map(|c| Pair {
+                display: format!("{c} "),
+                replacement: format!("{c} "),
+            })
+            .collect::<Vec<_>>();
+        if com.is_empty() {
+            self.completer.complete(line, pos, ctx)
+        } else {
+            Ok((0, com))
+        }
     }
 }
 
 fn main() -> anyhow::Result<()> {
     let mut rl = Editor::new().context("create rustyline instance")?;
 
-    let h = ShellHelper;
+    let h = ShellHelper {
+        completer: FilenameCompleter::new(),
+    };
     rl.set_helper(Some(h));
 
     loop {
