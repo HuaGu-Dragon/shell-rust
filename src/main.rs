@@ -103,8 +103,8 @@ impl Completer for ShellHelper {
             .into_iter()
             .filter(|c| c.starts_with(&line[..pos]))
             .map(|c| Pair {
-                display: format!("{c} "),
-                replacement: format!("{c} "),
+                display: c.clone(),
+                replacement: c,
             })
             .collect::<Vec<_>>();
         if com.is_empty() {
