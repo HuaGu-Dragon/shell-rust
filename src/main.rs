@@ -9,6 +9,7 @@ use std::sync::LazyLock;
 use anyhow::Context;
 use rustyline::CompletionType;
 use rustyline::Config;
+use rustyline::completion::Candidate;
 use rustyline::completion::Completer;
 use rustyline::completion::FilenameCompleter;
 use rustyline::completion::Pair;
@@ -67,7 +68,16 @@ impl Hinter for ShellHelper {
 
 impl Validator for ShellHelper {}
 
-impl Highlighter for ShellHelper {}
+impl Highlighter for ShellHelper {
+    fn highlight_candidate<'c>(
+        &self,
+        candidate: &'c str, // FIXME should be Completer::Candidate
+        completion: CompletionType,
+    ) -> Cow<'c, str> {
+        let _ = completion;
+        Cow::Borrowed(candidate)
+    }
+}
 
 impl Helper for ShellHelper {}
 
@@ -89,7 +99,7 @@ impl Completer for ShellHelper {
         let mut commands = vec![String::from("echo"), String::from("exit")];
         commands.extend_from_slice(PROGRAMS.as_slice());
 
-        let com = commands
+        let mut com = commands
             .into_iter()
             .filter(|c| c.starts_with(&line[..pos]))
             .map(|c| Pair {
@@ -100,6 +110,7 @@ impl Completer for ShellHelper {
         if com.is_empty() {
             self.completer.complete(line, pos, ctx)
         } else {
+            com.sort_unstable_by(|c1, c2| c1.display().cmp(c2.display()));
             Ok((0, com))
         }
     }
