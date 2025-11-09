@@ -124,9 +124,9 @@ impl Completer for ShellHelper {
         let mut commands = vec![String::from("echo"), String::from("exit")];
         commands.extend_from_slice(PROGRAMS.as_slice());
 
-        let exact_match = commands.iter().map(|c| c.starts_with(elected)).len();
+        let len = commands.iter().filter(|c| c.starts_with(elected)).count();
 
-        if exact_match == 1 {
+        if len == 1 {
             line.replace(start..end, &format!("{elected} "), cl);
         } else {
             line.replace(start..end, elected, cl);
