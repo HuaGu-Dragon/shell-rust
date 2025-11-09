@@ -7,6 +7,8 @@ use std::path::PathBuf;
 use std::sync::LazyLock;
 
 use anyhow::Context;
+use rustyline::CompletionType;
+use rustyline::Config;
 use rustyline::completion::Completer;
 use rustyline::completion::FilenameCompleter;
 use rustyline::completion::Pair;
@@ -104,7 +106,10 @@ impl Completer for ShellHelper {
 }
 
 fn main() -> anyhow::Result<()> {
-    let mut rl = Editor::new().context("create rustyline instance")?;
+    let config = Config::builder()
+        .completion_type(CompletionType::List)
+        .build();
+    let mut rl = Editor::with_config(config).context("create rustyline instance")?;
 
     let h = ShellHelper {
         completer: FilenameCompleter::new(),
