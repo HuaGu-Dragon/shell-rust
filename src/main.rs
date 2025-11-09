@@ -126,7 +126,7 @@ impl Completer for ShellHelper {
 
         let len = commands.iter().filter(|c| c.starts_with(elected)).count();
 
-        if len == 1 {
+        if len == 1 || elected == "echo" || elected == "exit" {
             line.replace(start..end, &format!("{elected} "), cl);
         } else {
             line.replace(start..end, elected, cl);
