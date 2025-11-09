@@ -7,6 +7,7 @@ use std::path::PathBuf;
 use std::sync::LazyLock;
 
 use anyhow::Context;
+use rustyline::Changeset;
 use rustyline::CompletionType;
 use rustyline::Config;
 use rustyline::completion::Candidate;
@@ -15,6 +16,7 @@ use rustyline::completion::FilenameCompleter;
 use rustyline::completion::Pair;
 use rustyline::highlight::Highlighter;
 use rustyline::hint::Hinter;
+use rustyline::line_buffer::LineBuffer;
 use rustyline::validate::Validator;
 use rustyline::{Editor, Helper};
 use shlex::Shlex;
@@ -109,14 +111,15 @@ impl Completer for ShellHelper {
             .collect::<Vec<_>>();
         if com.is_empty() {
             self.completer.complete(line, pos, ctx)
-        } else if com.len() == 1 {
-            com[0].display.push(' ');
-            com[0].replacement.push(' ');
-            Ok((0, com))
         } else {
             com.sort_unstable_by(|c1, c2| c1.display().cmp(c2.display()));
             Ok((0, com))
         }
+    }
+
+    fn update(&self, line: &mut LineBuffer, start: usize, elected: &str, cl: &mut Changeset) {
+        let end = line.pos();
+        line.replace(start..end, &format!("{elected} "), cl);
     }
 }
 
