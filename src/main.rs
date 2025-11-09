@@ -10,6 +10,7 @@ use anyhow::Context;
 use rustyline::Changeset;
 use rustyline::CompletionType;
 use rustyline::Config;
+
 use rustyline::completion::Candidate;
 use rustyline::completion::Completer;
 use rustyline::completion::FilenameCompleter;
@@ -119,7 +120,17 @@ impl Completer for ShellHelper {
 
     fn update(&self, line: &mut LineBuffer, start: usize, elected: &str, cl: &mut Changeset) {
         let end = line.pos();
-        line.replace(start..end, &format!("{elected} "), cl);
+
+        let mut commands = vec![String::from("echo"), String::from("exit")];
+        commands.extend_from_slice(PROGRAMS.as_slice());
+
+        let exact_match = commands.iter().map(|c| c.starts_with(elected)).len();
+
+        if exact_match == 1 {
+            line.replace(start..end, &format!("{elected} "), cl);
+        } else {
+            line.replace(start..end, elected, cl);
+        }
     }
 }
 
