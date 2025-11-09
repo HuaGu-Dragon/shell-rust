@@ -109,6 +109,10 @@ impl Completer for ShellHelper {
             .collect::<Vec<_>>();
         if com.is_empty() {
             self.completer.complete(line, pos, ctx)
+        } else if com.len() == 1 {
+            com[0].display.push(' ');
+            com[1].replacement.push(' ');
+            Ok((0, com))
         } else {
             com.sort_unstable_by(|c1, c2| c1.display().cmp(c2.display()));
             Ok((0, com))
