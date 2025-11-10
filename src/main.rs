@@ -18,6 +18,7 @@ use rustyline::completion::FilenameCompleter;
 use rustyline::completion::Pair;
 use rustyline::highlight::Highlighter;
 use rustyline::hint::Hinter;
+use rustyline::history::History;
 use rustyline::line_buffer::LineBuffer;
 use rustyline::validate::Validator;
 use rustyline::{Editor, Helper};
@@ -206,11 +207,26 @@ fn main() -> anyhow::Result<()> {
                     .context("get current dir")?
                     .display()
             ),
-            Some(Command::History) => rl
-                .history()
-                .iter()
-                .enumerate()
-                .for_each(|(index, entry)| println!("   {}  {entry}", index + 1)),
+            Some(Command::History) => {
+                if let Some(num) = args.next() {
+                    let num = num.parse().context("parsing arg into number")?;
+                    let history = rl
+                        .history()
+                        .iter()
+                        .rev()
+                        .enumerate()
+                        .take(num)
+                        .collect::<Vec<_>>();
+                    for (i, entry) in history.iter().rev() {
+                        println!("  {}  {}", rl.history().len() - i, entry);
+                    }
+                } else {
+                    rl.history()
+                        .iter()
+                        .enumerate()
+                        .for_each(|(i, entry)| println!("    {}  {entry}", i + 1));
+                }
+            }
             Some(Command::Program(ref path)) => run_command(path, &com, Parser::new(args))?,
             Some(Command::Exit) => break,
             Some(Command::Type) => {
