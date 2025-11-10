@@ -59,6 +59,7 @@ enum Command {
     Pwd,
     Cd,
     Type,
+    History,
     Program(PathBuf),
 }
 
@@ -100,7 +101,11 @@ impl Completer for ShellHelper {
         pos: usize,
         ctx: &rustyline::Context<'_>,
     ) -> rustyline::Result<(usize, Vec<Self::Candidate>)> {
-        let mut commands = vec![String::from("echo"), String::from("exit")];
+        let mut commands = vec![
+            String::from("echo"),
+            String::from("exit"),
+            String::from("history"),
+        ];
         commands.extend_from_slice(PROGRAMS.as_slice());
 
         let mut com = commands
@@ -137,8 +142,11 @@ impl Completer for ShellHelper {
 
 fn main() -> anyhow::Result<()> {
     let config = Config::builder()
+        .history_ignore_space(true)
+        .auto_add_history(true)
         .completion_type(CompletionType::List)
         .build();
+
     let mut rl = Editor::with_config(config).context("create rustyline instance")?;
 
     let h = ShellHelper {
@@ -198,6 +206,11 @@ fn main() -> anyhow::Result<()> {
                     .context("get current dir")?
                     .display()
             ),
+            Some(Command::History) => rl
+                .history()
+                .iter()
+                .enumerate()
+                .for_each(|(index, entry)| println!("   {}  {entry}", index + 1)),
             Some(Command::Program(ref path)) => run_command(path, &com, Parser::new(args))?,
             Some(Command::Exit) => break,
             Some(Command::Type) => {
@@ -222,6 +235,7 @@ fn command_type(com: &str) -> Option<Command> {
         "echo" => Some(Command::Echo),
         "cd" => Some(Command::Cd),
         "pwd" => Some(Command::Pwd),
+        "history" => Some(Command::History),
         "type" => Some(Command::Type),
         _ => std::env::var_os("PATH").and_then(|paths| {
             for path in std::env::split_paths(&paths) {
@@ -330,7 +344,7 @@ fn execute_pipeline(commands: &[&str]) -> anyhow::Result<()> {
 
                 children.push(child);
             }
-            Some(Command::Cd) | Some(Command::Exit) => {
+            Some(Command::Cd) | Some(Command::History) | Some(Command::Exit) => {
                 anyhow::bail!("{} cannot be used in pipelines", com);
             }
             None => {
