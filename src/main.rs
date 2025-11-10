@@ -269,7 +269,7 @@ fn execute_pipeline(commands: &[&str]) -> anyhow::Result<()> {
     for (i, cmd) in commands.iter().enumerate() {
         let mut input = Shlex::new(cmd);
         let com = input.next().context("parsing command")?;
-        let args: Vec<String> = input.collect();
+        let args = input;
 
         let command = command_type(&com);
         let is_last = i == commands.len() - 1;
@@ -277,9 +277,9 @@ fn execute_pipeline(commands: &[&str]) -> anyhow::Result<()> {
         match command {
             Some(Command::Echo) | Some(Command::Type) | Some(Command::Pwd) => {
                 if is_last {
-                    execute_builtin_in_pipeline(&com, &args, false)?;
+                    execute_builtin_in_pipeline(&com, args, false)?;
                 } else {
-                    let output = execute_builtin_in_pipeline(&com, &args, true)?;
+                    let output = execute_builtin_in_pipeline(&com, args, true)?;
                     previous_output = Some(output);
                 }
             }
@@ -287,7 +287,7 @@ fn execute_pipeline(commands: &[&str]) -> anyhow::Result<()> {
                 let mut process = std::process::Command::new(&path);
                 #[cfg(unix)]
                 process.arg0(&com);
-                process.args(&args);
+                process.args(args);
 
                 match previous_output.take() {
                     Some(PipeOutput::ChildStdout(stdout)) => {
@@ -353,14 +353,14 @@ enum PipeOutput {
 
 fn execute_builtin_in_pipeline(
     com: &str,
-    args: &[String],
+    mut args: Shlex,
     needs_output: bool,
 ) -> anyhow::Result<PipeOutput> {
     let mut output = String::new();
 
     match com {
         "echo" => {
-            let arg = args.join(" ");
+            let arg = args.collect::<Vec<_>>().join(" ");
             if needs_output {
                 output = format!("{}\n", arg);
             } else {
@@ -368,8 +368,8 @@ fn execute_builtin_in_pipeline(
             }
         }
         "type" => {
-            if let Some(name) = args.first() {
-                let command = command_type(name);
+            if let Some(name) = args.next() {
+                let command = command_type(&name);
                 let result = match command {
                     Some(Command::Program(ref path)) => format!("{} is {}", name, path.display()),
                     Some(_) => format!("{} is a shell builtin", name),
