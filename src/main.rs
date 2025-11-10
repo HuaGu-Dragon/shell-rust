@@ -264,40 +264,79 @@ fn execute_pipeline(commands: &[&str]) -> anyhow::Result<()> {
     }
 
     let mut children = Vec::new();
-    let mut previous_stdout: Option<std::process::ChildStdout> = None;
+    let mut previous_output: Option<PipeOutput> = None;
 
     for (i, cmd) in commands.iter().enumerate() {
         let mut input = Shlex::new(cmd);
         let com = input.next().context("parsing command")?;
         let args: Vec<String> = input.collect();
 
-        let path = match command_type(&com) {
-            Some(Command::Program(path)) => path,
-            _ => anyhow::bail!("Only external commands are supported in pipelines"),
-        };
+        let command = command_type(&com);
+        let is_last = i == commands.len() - 1;
 
-        let mut process = std::process::Command::new(&path);
-        #[cfg(unix)]
-        process.arg0(&com);
-        process.args(&args);
+        match command {
+            Some(Command::Echo) | Some(Command::Type) | Some(Command::Pwd) => {
+                if is_last {
+                    execute_builtin_in_pipeline(&com, &args, false)?;
+                } else {
+                    let output = execute_builtin_in_pipeline(&com, &args, true)?;
+                    previous_output = Some(output);
+                }
+            }
+            Some(Command::Program(path)) => {
+                let mut process = std::process::Command::new(&path);
+                #[cfg(unix)]
+                process.arg0(&com);
+                process.args(&args);
 
-        if let Some(stdout) = previous_stdout.take() {
-            process.stdin(stdout);
+                match previous_output.take() {
+                    Some(PipeOutput::ChildStdout(stdout)) => {
+                        process.stdin(stdout);
+                    }
+                    Some(PipeOutput::Buffer(content)) => {
+                        process.stdin(Stdio::piped());
+                        let mut child = process
+                            .stdout(if is_last {
+                                Stdio::inherit()
+                            } else {
+                                Stdio::piped()
+                            })
+                            .spawn()
+                            .context(format!("spawn process {}", i))?;
+
+                        if let Some(mut stdin) = child.stdin.take() {
+                            stdin.write_all(content.as_bytes())?;
+                        }
+
+                        if !is_last {
+                            previous_output = child.stdout.take().map(PipeOutput::ChildStdout);
+                        }
+
+                        children.push(child);
+                        continue;
+                    }
+                    None => {}
+                }
+
+                if !is_last {
+                    process.stdout(Stdio::piped());
+                }
+
+                let mut child = process.spawn().context(format!("spawn process {}", i))?;
+
+                if !is_last {
+                    previous_output = child.stdout.take().map(PipeOutput::ChildStdout);
+                }
+
+                children.push(child);
+            }
+            Some(Command::Cd) | Some(Command::Exit) => {
+                anyhow::bail!("{} cannot be used in pipelines", com);
+            }
+            None => {
+                anyhow::bail!("{}: command not found", com);
+            }
         }
-
-        if i < commands.len() - 1 {
-            process.stdout(Stdio::piped());
-        }
-
-        let mut child = process
-            .spawn()
-            .with_context(|| format!("spawn process {}", i))?;
-
-        if i < commands.len() - 1 {
-            previous_stdout = child.stdout.take();
-        }
-
-        children.push(child);
     }
 
     for child in children.iter_mut().rev() {
@@ -305,6 +344,59 @@ fn execute_pipeline(commands: &[&str]) -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+enum PipeOutput {
+    ChildStdout(std::process::ChildStdout),
+    Buffer(String),
+}
+
+fn execute_builtin_in_pipeline(
+    com: &str,
+    args: &[String],
+    needs_output: bool,
+) -> anyhow::Result<PipeOutput> {
+    let mut output = String::new();
+
+    match com {
+        "echo" => {
+            let arg = args.join(" ");
+            if needs_output {
+                output = format!("{}\n", arg);
+            } else {
+                println!("{}", arg);
+            }
+        }
+        "type" => {
+            if let Some(name) = args.first() {
+                let command = command_type(name);
+                let result = match command {
+                    Some(Command::Program(ref path)) => format!("{} is {}", name, path.display()),
+                    Some(_) => format!("{} is a shell builtin", name),
+                    None => format!("{}: not found", name),
+                };
+                if needs_output {
+                    output = format!("{}\n", result);
+                } else {
+                    println!("{}", result);
+                }
+            }
+        }
+        "pwd" => {
+            let dir = std::env::current_dir()
+                .context("get current dir")?
+                .display()
+                .to_string();
+            if needs_output {
+                output = format!("{}\n", dir);
+            } else {
+                println!("{}", dir);
+            }
+        }
+        _ => anyhow::bail!("Unknown builtin: {}", com),
+    }
+
+    Ok(PipeOutput::Buffer(output))
 }
 
 #[cfg(not(unix))]
