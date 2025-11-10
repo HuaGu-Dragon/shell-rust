@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 use std::fs::File;
 use std::io::Write;
+use std::process::Stdio;
 
 use std::path::Path;
 use std::path::PathBuf;
@@ -148,6 +149,15 @@ fn main() -> anyhow::Result<()> {
     loop {
         let readline = rl.readline("$ ").context("read user input")?;
 
+        if readline.contains('|') {
+            let commands: Vec<&str> = readline.split('|').map(|s| s.trim()).collect();
+
+            if let Err(e) = execute_pipeline(&commands) {
+                eprintln!("Pipeline error: {}", e);
+            }
+            continue;
+        }
+
         let mut input = Shlex::new(readline.trim());
         let com = input.next().context("parsing command")?;
         let mut args = input;
@@ -246,6 +256,55 @@ fn is_executable(path: &PathBuf) -> bool {
 #[cfg(not(unix))]
 fn is_executable(path: &Path) -> bool {
     path.is_file()
+}
+
+fn execute_pipeline(commands: &[&str]) -> anyhow::Result<()> {
+    if commands.len() < 2 {
+        anyhow::bail!("Pipeline must have at least 2 commands");
+    }
+
+    let mut children = Vec::new();
+    let mut previous_stdout: Option<std::process::ChildStdout> = None;
+
+    for (i, cmd) in commands.iter().enumerate() {
+        let mut input = Shlex::new(cmd);
+        let com = input.next().context("parsing command")?;
+        let args: Vec<String> = input.collect();
+
+        let path = match command_type(&com) {
+            Some(Command::Program(path)) => path,
+            _ => anyhow::bail!("Only external commands are supported in pipelines"),
+        };
+
+        let mut process = std::process::Command::new(&path);
+        #[cfg(unix)]
+        process.arg0(&com);
+        process.args(&args);
+
+        if let Some(stdout) = previous_stdout.take() {
+            process.stdin(stdout);
+        }
+
+        if i < commands.len() - 1 {
+            process.stdout(Stdio::piped());
+        }
+
+        let mut child = process
+            .spawn()
+            .with_context(|| format!("spawn process {}", i))?;
+
+        if i < commands.len() - 1 {
+            previous_stdout = child.stdout.take();
+        }
+
+        children.push(child);
+    }
+
+    for child in children.iter_mut().rev() {
+        child.wait().context("wait for process")?;
+    }
+
+    Ok(())
 }
 
 #[cfg(not(unix))]
