@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 use std::fs::File;
-use std::io::Write;
+use std::io::{BufRead, BufReader, Write};
 use std::process::Stdio;
 
 use std::path::Path;
@@ -214,6 +214,7 @@ fn main() -> anyhow::Result<()> {
                     rl.load_history(&read).context("Read history from file")?;
                 } else if let Some(write) = history_info.write {
                     rl.save_history(&write).context("Write history to file")?;
+                    remove_tag(write).context("Remove #V2 tag from history file")?;
                 } else if let Some(num) = history_info.num {
                     let history = rl
                         .history()
@@ -529,6 +530,7 @@ impl Iterator for &mut Parser<'_> {
 struct HistoryInfo {
     read: Option<PathBuf>,
     write: Option<PathBuf>,
+    // append: Option<PathBuf>,
     num: Option<usize>,
 }
 
@@ -551,6 +553,24 @@ impl HistoryInfo {
         }
         Ok(HistoryInfo { read, write, num })
     }
+}
+
+fn remove_tag(path: PathBuf) -> anyhow::Result<()> {
+    let file = File::open(&path).context("Open history file for reading")?;
+    let reader = BufReader::new(file);
+    let lines: Vec<String> = reader.lines().skip(1).collect::<Result<_, _>>()?;
+
+    let mut file = File::options()
+        .write(true)
+        .truncate(true)
+        .open(&path)
+        .context("Open history file for writing")?;
+
+    for line in lines {
+        writeln!(file, "{}", line)?;
+    }
+
+    Ok(())
 }
 
 #[test]
