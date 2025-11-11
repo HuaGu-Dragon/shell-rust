@@ -211,7 +211,7 @@ fn main() -> anyhow::Result<()> {
             Some(Command::History) => {
                 let history_info = HistoryInfo::new(args)?;
                 if let Some(read) = history_info.read {
-                    rl.append_history(&read).context("Read history from file")?;
+                    rl.load_history(&read).context("Read history from file")?;
                 } else if let Some(num) = history_info.num {
                     let history = rl
                         .history()
