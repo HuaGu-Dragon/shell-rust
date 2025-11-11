@@ -151,7 +151,9 @@ fn main() -> anyhow::Result<()> {
 
     let mut rl = Editor::with_config(config).context("create rustyline instance")?;
 
-    if let Ok(history) = std::env::var("HISTFILE") {
+    let history = std::env::var("HISTFILE");
+
+    if let Ok(history) = &history {
         rl.load_history(&PathBuf::from(history))
             .context("load history from env arg")?;
     }
@@ -255,6 +257,13 @@ fn main() -> anyhow::Result<()> {
             }
             None => println!("{com}: command not found"),
         }
+    }
+
+    if let Ok(history) = &history {
+        let path = PathBuf::from(history);
+        rl.save_history(&path)
+            .context("write history from env arg")?;
+        remove_tag(path).context("remove tag")?;
     }
 
     Ok(())
