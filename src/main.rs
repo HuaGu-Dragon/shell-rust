@@ -5,6 +5,7 @@ use std::process::Stdio;
 
 use std::path::Path;
 use std::path::PathBuf;
+
 use std::sync::LazyLock;
 
 use anyhow::Context;
@@ -208,8 +209,8 @@ fn main() -> anyhow::Result<()> {
                     .display()
             ),
             Some(Command::History) => {
-                if let Some(num) = args.next() {
-                    let num = num.parse().context("parsing arg into number")?;
+                let history_info = HistoryInfo::new(args)?;
+                if let Some(num) = history_info.num {
                     let history = rl
                         .history()
                         .iter()
@@ -225,6 +226,9 @@ fn main() -> anyhow::Result<()> {
                         .iter()
                         .enumerate()
                         .for_each(|(i, entry)| println!("    {}  {entry}", i + 1));
+                }
+                if let Some(read) = history_info.read {
+                    rl.append_history(&read).context("Read history from file")?;
                 }
             }
             Some(Command::Program(ref path)) => run_command(path, &com, Parser::new(args))?,
@@ -518,6 +522,26 @@ impl Iterator for &mut Parser<'_> {
         }
 
         Some(next)
+    }
+}
+
+struct HistoryInfo {
+    read: Option<PathBuf>,
+    num: Option<usize>,
+}
+
+impl HistoryInfo {
+    fn new(shlex: Shlex<'_>) -> anyhow::Result<Self> {
+        let mut read = None;
+        let mut num = None;
+
+        for arg in shlex {
+            match &arg[..] {
+                "-r" => read = Some(PathBuf::from(arg)),
+                _ => num = Some(arg.parse().context("parsing arg into number")?),
+            }
+        }
+        Ok(HistoryInfo { read, num })
     }
 }
 
