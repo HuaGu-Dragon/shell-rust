@@ -261,7 +261,7 @@ fn main() -> anyhow::Result<()> {
 
     if let Ok(history) = &history {
         let path = PathBuf::from(history);
-        rl.save_history(&path)
+        rl.append_history(&path)
             .context("write history from env arg")?;
         remove_tag(path).context("remove tag")?;
     }
