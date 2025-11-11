@@ -575,7 +575,7 @@ fn remove_tag(path: PathBuf) -> anyhow::Result<()> {
     let reader = BufReader::new(file);
     let lines: Vec<String> = reader
         .lines()
-        .skip(1)
+        .filter(|line| !matches!(line.as_deref(), Ok(l) if l.starts_with("#V2")))
         .collect::<Result<_, _>>()
         .context("read history from file")?;
 
