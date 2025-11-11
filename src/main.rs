@@ -212,6 +212,8 @@ fn main() -> anyhow::Result<()> {
                 let history_info = HistoryInfo::new(args)?;
                 if let Some(read) = history_info.read {
                     rl.load_history(&read).context("Read history from file")?;
+                } else if let Some(write) = history_info.write {
+                    rl.save_history(&write).context("Write history to file")?;
                 } else if let Some(num) = history_info.num {
                     let history = rl
                         .history()
@@ -526,21 +528,28 @@ impl Iterator for &mut Parser<'_> {
 
 struct HistoryInfo {
     read: Option<PathBuf>,
+    write: Option<PathBuf>,
     num: Option<usize>,
 }
 
 impl HistoryInfo {
     fn new(mut shlex: Shlex<'_>) -> anyhow::Result<Self> {
         let mut read = None;
+        let mut write = None;
         let mut num = None;
 
         while let Some(next) = shlex.next() {
             match &next[..] {
                 "-r" => read = Some(PathBuf::from(shlex.next().context("Load hitstory file")?)),
+                "-w" => {
+                    write = Some(PathBuf::from(
+                        shlex.next().context("Parsing history file to write")?,
+                    ))
+                }
                 _ => num = Some(next.parse().context("parsing arg into number")?),
             }
         }
-        Ok(HistoryInfo { read, num })
+        Ok(HistoryInfo { read, write, num })
     }
 }
 
