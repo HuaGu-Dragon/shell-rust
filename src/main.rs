@@ -210,7 +210,9 @@ fn main() -> anyhow::Result<()> {
             ),
             Some(Command::History) => {
                 let history_info = HistoryInfo::new(args)?;
-                if let Some(num) = history_info.num {
+                if let Some(read) = history_info.read {
+                    rl.append_history(&read).context("Read history from file")?;
+                } else if let Some(num) = history_info.num {
                     let history = rl
                         .history()
                         .iter()
@@ -226,9 +228,6 @@ fn main() -> anyhow::Result<()> {
                         .iter()
                         .enumerate()
                         .for_each(|(i, entry)| println!("    {}  {entry}", i + 1));
-                }
-                if let Some(read) = history_info.read {
-                    rl.append_history(&read).context("Read history from file")?;
                 }
             }
             Some(Command::Program(ref path)) => run_command(path, &com, Parser::new(args))?,
