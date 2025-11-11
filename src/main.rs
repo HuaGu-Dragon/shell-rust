@@ -151,6 +151,11 @@ fn main() -> anyhow::Result<()> {
 
     let mut rl = Editor::with_config(config).context("create rustyline instance")?;
 
+    if let Ok(history) = std::env::var("HISTFILE") {
+        rl.load_history(&PathBuf::from(history))
+            .context("load history from env arg")?;
+    }
+
     let h = ShellHelper {
         completer: FilenameCompleter::new(),
     };
