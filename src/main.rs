@@ -218,6 +218,7 @@ fn main() -> anyhow::Result<()> {
                 } else if let Some(append) = history_info.append {
                     rl.append_history(&append)
                         .context("Append history to file")?;
+                    remove_tag(append).context("Remove #V2 tag from history file")?;
                 } else if let Some(num) = history_info.num {
                     let history = rl
                         .history()
