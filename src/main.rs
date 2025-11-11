@@ -531,14 +531,14 @@ struct HistoryInfo {
 }
 
 impl HistoryInfo {
-    fn new(shlex: Shlex<'_>) -> anyhow::Result<Self> {
+    fn new(mut shlex: Shlex<'_>) -> anyhow::Result<Self> {
         let mut read = None;
         let mut num = None;
 
-        for arg in shlex {
-            match &arg[..] {
-                "-r" => read = Some(PathBuf::from(arg)),
-                _ => num = Some(arg.parse().context("parsing arg into number")?),
+        while let Some(next) = shlex.next() {
+            match &next[..] {
+                "-r" => read = Some(PathBuf::from(shlex.next().context("Load hitstory file")?)),
+                _ => num = Some(next.parse().context("parsing arg into number")?),
             }
         }
         Ok(HistoryInfo { read, num })
