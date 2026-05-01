@@ -155,6 +155,7 @@ fn main() -> anyhow::Result<()> {
         .history_ignore_space(true)
         .auto_add_history(true)
         .completion_type(CompletionType::List)
+        .bell_style(rustyline::config::BellStyle::Audible)
         .build();
 
     let mut rl = Editor::with_config(config).context("create rustyline instance")?;
