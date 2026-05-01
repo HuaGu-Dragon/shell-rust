@@ -122,6 +122,9 @@ impl Completer for ShellHelper {
             let (start, mut complete) = self.completer.complete(line, pos, ctx)?;
 
             for pair in complete.iter_mut() {
+                if pair.replacement.ends_with('/') {
+                    pair.display.push('/');
+                }
                 if !pair.replacement.ends_with('/') && !pair.replacement.ends_with(' ') {
                     pair.replacement.push(' ');
                 }
