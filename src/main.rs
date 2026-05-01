@@ -119,7 +119,15 @@ impl Completer for ShellHelper {
             })
             .collect::<Vec<_>>();
         if com.is_empty() {
-            self.completer.complete(line, pos, ctx)
+            let (start, mut complete) = self.completer.complete(line, pos, ctx)?;
+
+            for pair in complete.iter_mut() {
+                if !pair.replacement.ends_with('/') && !pair.replacement.ends_with(' ') {
+                    pair.replacement.push(' ');
+                }
+            }
+
+            Ok((start, complete))
         } else {
             com.sort_unstable_by(|c1, c2| c1.display().cmp(c2.display()));
             Ok((0, com))
