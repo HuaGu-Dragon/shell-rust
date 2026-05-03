@@ -52,6 +52,7 @@ static PROGRAMS: LazyLock<Vec<String>> = LazyLock::new(|| {
             }
         }
     });
+
     programs
 });
 
@@ -62,6 +63,7 @@ enum Command {
     Cd,
     Type,
     History,
+    Jobs,
     Program(PathBuf),
 }
 
@@ -175,6 +177,8 @@ fn main() -> anyhow::Result<()> {
     };
     rl.set_helper(Some(h));
 
+    let mut jobs = vec![];
+
     loop {
         let readline = rl.readline("$ ").context("read user input")?;
 
@@ -203,6 +207,7 @@ fn main() -> anyhow::Result<()> {
                     println!("{arg}");
                 }
             }
+            Some(Command::Jobs) => {}
             Some(Command::Cd) => {
                 let mut path = PathBuf::from(&args.next().context("parsing path")?);
                 if path.starts_with("~") {
@@ -256,7 +261,9 @@ fn main() -> anyhow::Result<()> {
                         .for_each(|(i, entry)| println!("    {}  {entry}", i + 1));
                 }
             }
-            Some(Command::Program(ref path)) => run_command(path, &com, Parser::new(args))?,
+            Some(Command::Program(ref path)) => {
+                run_command(path, &com, Parser::new(args), &mut jobs)?
+            }
             Some(Command::Exit) => break,
             Some(Command::Type) => {
                 let name = &args.next().context("parsing arg")?;
@@ -289,6 +296,7 @@ fn command_type(com: &str) -> Option<Command> {
         "pwd" => Some(Command::Pwd),
         "history" => Some(Command::History),
         "type" => Some(Command::Type),
+        "jobs" => Some(Command::Jobs),
         _ => std::env::var_os("PATH").and_then(|paths| {
             for path in std::env::split_paths(&paths) {
                 if path.is_dir() {
@@ -396,7 +404,10 @@ fn execute_pipeline(commands: &[&str]) -> anyhow::Result<()> {
 
                 children.push(child);
             }
-            Some(Command::Cd) | Some(Command::History) | Some(Command::Exit) => {
+            Some(Command::Cd)
+            | Some(Command::History)
+            | Some(Command::Exit)
+            | Some(Command::Jobs) => {
                 anyhow::bail!("{} cannot be used in pipelines", com);
             }
             None => {
@@ -466,7 +477,7 @@ fn execute_builtin_in_pipeline(
 }
 
 #[cfg(not(unix))]
-fn run_command(path: &Path, _: &str, mut args: Parser) -> anyhow::Result<()> {
+fn run_command(path: &Path, _: &str, mut args: Parser, jobs: &mut Vec<u32>) -> anyhow::Result<()> {
     let mut settings = std::process::Command::new(path);
     settings.args(&mut args);
 
@@ -480,12 +491,26 @@ fn run_command(path: &Path, _: &str, mut args: Parser) -> anyhow::Result<()> {
 
     let mut child = settings.spawn().context("spawn child process")?;
 
-    child.wait().context("wait for child process")?;
+    if args.background {
+        let pid = child.id();
+        jobs.push(pid);
+
+        let job_num = jobs.len();
+        println!("[{job_num}] {pid}",);
+    } else {
+        child.wait().context("wait for child process")?;
+    }
+
     Ok(())
 }
 
 #[cfg(unix)]
-fn run_command(path: &Path, com: &str, mut args: Parser) -> anyhow::Result<()> {
+fn run_command(
+    path: &Path,
+    com: &str,
+    mut args: Parser,
+    jobs: &mut Vec<u32>,
+) -> anyhow::Result<()> {
     let mut settings = std::process::Command::new(path);
     settings.arg0(com);
     settings.args(&mut args);
@@ -500,7 +525,16 @@ fn run_command(path: &Path, com: &str, mut args: Parser) -> anyhow::Result<()> {
 
     let mut child = settings.spawn().context("spawn child process")?;
 
-    child.wait().context("wait for child process")?;
+    if args.background {
+        let pid = child.id();
+        jobs.push(pid);
+
+        let job_num = jobs.len();
+        println!("[{job_num}] {pid}",);
+    } else {
+        child.wait().context("wait for child process")?;
+    }
+
     Ok(())
 }
 
@@ -508,6 +542,7 @@ struct Parser<'de> {
     stdout: Option<File>,
     stderr: Option<File>,
     shlex: Shlex<'de>,
+    background: bool,
 }
 
 impl<'de> Parser<'de> {
@@ -516,6 +551,7 @@ impl<'de> Parser<'de> {
             stdout: None,
             stderr: None,
             shlex: input,
+            background: false,
         }
     }
 }
@@ -550,6 +586,10 @@ impl Iterator for &mut Parser<'_> {
                     .open(self.shlex.next()?)
                     .unwrap(),
             );
+            next = self.shlex.next()?;
+        } else if next == "&" {
+            // TODO: check if & is the last token
+            self.background = true;
             next = self.shlex.next()?;
         }
 
