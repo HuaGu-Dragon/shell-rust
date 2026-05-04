@@ -177,7 +177,7 @@ fn main() -> anyhow::Result<()> {
     };
     rl.set_helper(Some(h));
 
-    let mut jobs = vec![];
+    let mut jobs: Vec<Job> = vec![];
 
     loop {
         let readline = rl.readline("$ ").context("read user input")?;
@@ -191,7 +191,9 @@ fn main() -> anyhow::Result<()> {
             continue;
         }
 
-        let mut input = Shlex::new(readline.trim());
+        let raw_com = readline.trim();
+
+        let mut input = Shlex::new(raw_com);
         let com = input.next().context("parsing command")?;
         let mut args = input;
 
@@ -207,7 +209,25 @@ fn main() -> anyhow::Result<()> {
                     println!("{arg}");
                 }
             }
-            Some(Command::Jobs) => {}
+            Some(Command::Jobs) => {
+                for (idx, job) in jobs.iter().enumerate() {
+                    let idx = idx + 1;
+                    print!("[{idx}]");
+                    print!(
+                        "{}",
+                        if idx == jobs.len() {
+                            "+"
+                        } else if idx == jobs.len().saturating_sub(1) {
+                            "-"
+                        } else {
+                            " "
+                        }
+                    );
+                    print!("  ");
+                    print!("{:<24}", "Running");
+                    println!("{}", job.com);
+                }
+            }
             Some(Command::Cd) => {
                 let mut path = PathBuf::from(&args.next().context("parsing path")?);
                 if path.starts_with("~") {
@@ -262,7 +282,7 @@ fn main() -> anyhow::Result<()> {
                 }
             }
             Some(Command::Program(ref path)) => {
-                run_command(path, &com, Parser::new(args), &mut jobs)?
+                run_command(path, &com, Parser::new(args), raw_com, &mut jobs)?
             }
             Some(Command::Exit) => break,
             Some(Command::Type) => {
@@ -477,7 +497,13 @@ fn execute_builtin_in_pipeline(
 }
 
 #[cfg(not(unix))]
-fn run_command(path: &Path, _: &str, mut args: Parser, jobs: &mut Vec<u32>) -> anyhow::Result<()> {
+fn run_command(
+    path: &Path,
+    _: &str,
+    mut args: Parser,
+    raw_com: &str,
+    jobs: &mut Vec<Job>,
+) -> anyhow::Result<()> {
     let mut settings = std::process::Command::new(path);
     settings.args(&mut args);
 
@@ -493,7 +519,10 @@ fn run_command(path: &Path, _: &str, mut args: Parser, jobs: &mut Vec<u32>) -> a
 
     if args.background {
         let pid = child.id();
-        jobs.push(pid);
+        jobs.push(Job {
+            pid,
+            com: raw_com.to_string(),
+        });
 
         let job_num = jobs.len();
         println!("[{job_num}] {pid}",);
@@ -509,7 +538,8 @@ fn run_command(
     path: &Path,
     com: &str,
     mut args: Parser,
-    jobs: &mut Vec<u32>,
+    raw_com: &str,
+    jobs: &mut Vec<Job>,
 ) -> anyhow::Result<()> {
     let mut settings = std::process::Command::new(path);
     settings.arg0(com);
@@ -527,7 +557,10 @@ fn run_command(
 
     if args.background {
         let pid = child.id();
-        jobs.push(pid);
+        jobs.push(Job {
+            pid,
+            com: raw_com.to_string(),
+        });
 
         let job_num = jobs.len();
         println!("[{job_num}] {pid}",);
@@ -657,6 +690,11 @@ fn remove_tag(path: PathBuf) -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+struct Job {
+    pid: u32,
+    com: String,
 }
 
 #[test]
