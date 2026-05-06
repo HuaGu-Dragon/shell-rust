@@ -211,10 +211,11 @@ fn main() -> anyhow::Result<()> {
             }
             Some(Command::Jobs) => {
                 let n = jobs.len();
+                let mut idx = 1;
                 jobs.retain_mut(|job| {
                     let mut finished = false;
-                    let idx = job.id;
-                    print!("[{idx}]");
+                    let num = job.id;
+                    print!("[{num}]");
                     print!(
                         "{}",
                         if idx == n {
@@ -244,6 +245,7 @@ fn main() -> anyhow::Result<()> {
                         }
                     );
 
+                    idx += 1;
                     finished
                 });
             }
