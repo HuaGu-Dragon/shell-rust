@@ -180,6 +180,34 @@ fn main() -> anyhow::Result<()> {
     let mut jobs: Vec<Job> = vec![];
 
     loop {
+        let n = jobs.len();
+        let mut idx = 1;
+        jobs.retain_mut(|job| {
+            let done = !job.child.try_wait().is_ok_and(|r| r.is_none());
+            if !done {
+                return true;
+            }
+
+            let num = job.id;
+            print!("[{num}]");
+            print!(
+                "{}",
+                if idx == n {
+                    "+"
+                } else if idx == n.saturating_sub(1) {
+                    "-"
+                } else {
+                    " "
+                }
+            );
+            print!("  ");
+            print!("{:<24}", "Done");
+            println!("{}", &job.com[..job.com.len().saturating_sub(2)]);
+
+            idx += 1;
+            false
+        });
+
         let readline = rl.readline("$ ").context("read user input")?;
 
         if readline.contains('|') {
