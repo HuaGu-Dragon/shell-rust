@@ -578,6 +578,7 @@ fn run_command(
     if args.background {
         let pid = child.id();
         jobs.push(Job {
+            id: jobs.len() + 1,
             com: raw_com.to_string(),
             child,
         });
