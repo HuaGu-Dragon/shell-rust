@@ -185,6 +185,7 @@ fn main() -> anyhow::Result<()> {
         jobs.retain_mut(|job| {
             let done = !job.child.try_wait().is_ok_and(|r| r.is_none());
             if !done {
+                idx += 1;
                 return true;
             }
 
