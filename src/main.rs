@@ -211,9 +211,9 @@ fn main() -> anyhow::Result<()> {
             }
             Some(Command::Jobs) => {
                 let n = jobs.len();
-                let mut idx = 1;
                 jobs.retain_mut(|job| {
                     let mut finished = false;
+                    let idx = job.id;
                     print!("[{idx}]");
                     print!(
                         "{}",
@@ -244,7 +244,6 @@ fn main() -> anyhow::Result<()> {
                         }
                     );
 
-                    idx += 1;
                     finished
                 });
             }
@@ -540,6 +539,7 @@ fn run_command(
     if args.background {
         let pid = child.id();
         jobs.push(Job {
+            id: jobs.len() + 1,
             com: raw_com.to_string(),
             child,
         });
@@ -713,6 +713,7 @@ fn remove_tag(path: PathBuf) -> anyhow::Result<()> {
 }
 
 struct Job {
+    id: usize,
     com: String,
     child: Child,
 }
