@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Write};
-use std::process::Stdio;
+use std::process::{Child, Stdio};
 
 use std::path::Path;
 use std::path::PathBuf;
@@ -210,23 +210,36 @@ fn main() -> anyhow::Result<()> {
                 }
             }
             Some(Command::Jobs) => {
-                for (idx, job) in jobs.iter().enumerate() {
-                    let idx = idx + 1;
+                let n = jobs.len();
+                let mut idx = 1;
+                jobs.retain_mut(|job| {
+                    let mut finished = false;
                     print!("[{idx}]");
                     print!(
                         "{}",
-                        if idx == jobs.len() {
+                        if idx == n {
                             "+"
-                        } else if idx == jobs.len().saturating_sub(1) {
+                        } else if idx == n.saturating_sub(1) {
                             "-"
                         } else {
                             " "
                         }
                     );
                     print!("  ");
-                    print!("{:<24}", "Running");
+                    print!(
+                        "{:<24}",
+                        if job.child.try_wait().is_ok_and(|r| r.is_none()) {
+                            finished = true;
+                            "Running"
+                        } else {
+                            "Done"
+                        }
+                    );
                     println!("{}", job.com);
-                }
+
+                    idx += 1;
+                    finished
+                });
             }
             Some(Command::Cd) => {
                 let mut path = PathBuf::from(&args.next().context("parsing path")?);
@@ -520,8 +533,8 @@ fn run_command(
     if args.background {
         let pid = child.id();
         jobs.push(Job {
-            pid,
             com: raw_com.to_string(),
+            child,
         });
 
         let job_num = jobs.len();
@@ -558,8 +571,8 @@ fn run_command(
     if args.background {
         let pid = child.id();
         jobs.push(Job {
-            pid,
             com: raw_com.to_string(),
+            child,
         });
 
         let job_num = jobs.len();
@@ -693,8 +706,8 @@ fn remove_tag(path: PathBuf) -> anyhow::Result<()> {
 }
 
 struct Job {
-    pid: u32,
     com: String,
+    child: Child,
 }
 
 #[test]
