@@ -235,7 +235,14 @@ fn main() -> anyhow::Result<()> {
                             "Done"
                         }
                     );
-                    println!("{}", job.com);
+                    println!(
+                        "{}",
+                        if finished {
+                            &job.com[..]
+                        } else {
+                            &job.com[..job.com.len().saturating_sub(2)]
+                        }
+                    );
 
                     idx += 1;
                     finished
