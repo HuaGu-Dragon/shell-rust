@@ -1,4 +1,3 @@
-use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Write};
@@ -10,26 +9,22 @@ use std::path::PathBuf;
 use std::sync::LazyLock;
 
 use anyhow::Context;
-use rustyline::Changeset;
 use rustyline::CompletionType;
 use rustyline::Config;
 
-use rustyline::completion::Candidate;
-use rustyline::completion::Completer;
+use rustyline::Editor;
 use rustyline::completion::FilenameCompleter;
-use rustyline::completion::Pair;
-use rustyline::highlight::Highlighter;
-use rustyline::hint::Hinter;
 use rustyline::history::History;
-use rustyline::line_buffer::LineBuffer;
-use rustyline::validate::Validator;
-use rustyline::{Editor, Helper};
 use shlex::Shlex;
 
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 #[cfg(unix)]
 use std::os::unix::process::CommandExt;
+
+use crate::helper::ShellHelper;
+
+mod helper;
 
 static PROGRAMS: LazyLock<Vec<String>> = LazyLock::new(|| {
     let mut programs = Vec::new();
@@ -67,95 +62,6 @@ enum Command {
     Jobs,
     Complete,
     Program(PathBuf),
-}
-
-struct ShellHelper {
-    completer: FilenameCompleter,
-    custom_completion: HashMap<String, String>,
-}
-
-impl Hinter for ShellHelper {
-    type Hint = String;
-}
-
-impl Validator for ShellHelper {}
-
-impl Highlighter for ShellHelper {
-    fn highlight_candidate<'c>(
-        &self,
-        candidate: &'c str, // FIXME should be Completer::Candidate
-        completion: CompletionType,
-    ) -> Cow<'c, str> {
-        let _ = completion;
-        Cow::Borrowed(candidate)
-    }
-}
-
-impl Helper for ShellHelper {}
-
-impl Completer for ShellHelper {
-    type Candidate = Pair;
-    // TODO: let the implementers choose/find word boundaries ??? => Lexer
-
-    /// Takes the currently edited `line` with the cursor `pos`ition and
-    /// returns the start position and the completion candidates for the
-    /// partial word to be completed.
-    ///
-    /// `("ls /usr/loc", 11)` => `Ok((3, vec!["/usr/local/"]))`
-    fn complete(
-        &self, // FIXME should be `&mut self`
-        line: &str,
-        pos: usize,
-        ctx: &rustyline::Context<'_>,
-    ) -> rustyline::Result<(usize, Vec<Self::Candidate>)> {
-        let mut commands = vec![
-            String::from("echo"),
-            String::from("exit"),
-            String::from("history"),
-        ];
-        commands.extend_from_slice(PROGRAMS.as_slice());
-
-        let mut com = commands
-            .into_iter()
-            .filter(|c| c.starts_with(&line[..pos]))
-            .map(|c| Pair {
-                display: c.clone(),
-                replacement: c,
-            })
-            .collect::<Vec<_>>();
-        if com.is_empty() {
-            let (start, mut complete) = self.completer.complete(line, pos, ctx)?;
-
-            for pair in complete.iter_mut() {
-                if pair.replacement.ends_with('/') {
-                    pair.display.push('/');
-                }
-                if !pair.replacement.ends_with('/') && !pair.replacement.ends_with(' ') {
-                    pair.replacement.push(' ');
-                }
-            }
-
-            Ok((start, complete))
-        } else {
-            com.sort_unstable_by(|c1, c2| c1.display().cmp(c2.display()));
-            Ok((0, com))
-        }
-    }
-
-    fn update(&self, line: &mut LineBuffer, start: usize, elected: &str, cl: &mut Changeset) {
-        let end = line.pos();
-
-        let mut commands = vec![String::from("echo"), String::from("exit")];
-        commands.extend_from_slice(PROGRAMS.as_slice());
-
-        let len = commands.iter().filter(|c| c.starts_with(elected)).count();
-
-        if len == 1 || elected == "echo" || elected == "exit" {
-            line.replace(start..end, &format!("{elected} "), cl);
-        } else {
-            line.replace(start..end, elected, cl);
-        }
-    }
 }
 
 fn main() -> anyhow::Result<()> {
