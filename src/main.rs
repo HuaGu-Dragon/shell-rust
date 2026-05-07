@@ -369,6 +369,7 @@ fn command_type(com: &str) -> Option<Command> {
         "history" => Some(Command::History),
         "type" => Some(Command::Type),
         "jobs" => Some(Command::Jobs),
+        "complete" => Some(Command::Complete),
         _ => std::env::var_os("PATH").and_then(|paths| {
             for path in std::env::split_paths(&paths) {
                 if path.is_dir() {
