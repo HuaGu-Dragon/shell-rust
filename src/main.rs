@@ -64,6 +64,7 @@ enum Command {
     Type,
     History,
     Jobs,
+    Complete,
     Program(PathBuf),
 }
 
@@ -238,6 +239,7 @@ fn main() -> anyhow::Result<()> {
                     println!("{arg}");
                 }
             }
+            Some(Command::Complete) => {}
             Some(Command::Jobs) => {
                 let n = jobs.len();
                 let mut idx = 1;
@@ -477,7 +479,8 @@ fn execute_pipeline(commands: &[&str]) -> anyhow::Result<()> {
             Some(Command::Cd)
             | Some(Command::History)
             | Some(Command::Exit)
-            | Some(Command::Jobs) => {
+            | Some(Command::Jobs)
+            | Some(Command::Complete) => {
                 anyhow::bail!("{} cannot be used in pipelines", com);
             }
             None => {
