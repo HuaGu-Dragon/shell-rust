@@ -239,7 +239,16 @@ fn main() -> anyhow::Result<()> {
                     println!("{arg}");
                 }
             }
-            Some(Command::Complete) => {}
+            Some(Command::Complete) => {
+                let p = args.next();
+                anyhow::ensure!(Some("-p") == p.as_deref(), "missing -p flag");
+
+                let prog = args.next();
+                let Some(prog) = prog else {
+                    anyhow::bail!("missing program name")
+                };
+                println!("complete: {prog}: no completion specification")
+            }
             Some(Command::Jobs) => {
                 let n = jobs.len();
                 let mut idx = 1;
