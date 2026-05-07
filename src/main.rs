@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Write};
 use std::process::{Child, Stdio};
@@ -70,6 +71,7 @@ enum Command {
 
 struct ShellHelper {
     completer: FilenameCompleter,
+    custom_completion: HashMap<String, String>,
 }
 
 impl Hinter for ShellHelper {
@@ -175,6 +177,7 @@ fn main() -> anyhow::Result<()> {
 
     let h = ShellHelper {
         completer: FilenameCompleter::new(),
+        custom_completion: HashMap::new(),
     };
     rl.set_helper(Some(h));
 
@@ -240,14 +243,40 @@ fn main() -> anyhow::Result<()> {
                 }
             }
             Some(Command::Complete) => {
-                let p = args.next();
-                anyhow::ensure!(Some("-p") == p.as_deref(), "missing -p flag");
-
-                let prog = args.next();
-                let Some(prog) = prog else {
-                    anyhow::bail!("missing program name")
+                let flag = args.next();
+                let Some(flag) = flag else {
+                    anyhow::bail!("missing flag")
                 };
-                println!("complete: {prog}: no completion specification")
+
+                match flag.as_str() {
+                    "-p" => {
+                        let prog = args.next();
+
+                        let Some(prog) = prog else {
+                            anyhow::bail!("missing program name")
+                        };
+
+                        if let Some(path) = rl.helper_mut().unwrap().custom_completion.get(&prog) {
+                            println!("complete -C '{path}' {prog}");
+                        } else {
+                            println!("complete: {prog}: no completion specification")
+                        }
+                    }
+                    "-C" => {
+                        let path = args.next();
+                        let prog = args.next();
+
+                        let (Some(path), Some(prog)) = (path, prog) else {
+                            anyhow::bail!("missing program name")
+                        };
+
+                        rl.helper_mut()
+                            .unwrap()
+                            .custom_completion
+                            .insert(prog, path);
+                    }
+                    _ => anyhow::bail!("invalid flag"),
+                };
             }
             Some(Command::Jobs) => {
                 let n = jobs.len();
