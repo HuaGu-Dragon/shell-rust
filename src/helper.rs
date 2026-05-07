@@ -23,15 +23,11 @@ pub struct ShellHelper {
 }
 
 impl ShellHelper {
-    fn extract_command(line: &str) -> Option<&str> {
-        line.split_whitespace().next()
-    }
-
-    fn run_completer_script(&self, cmd: &str) -> Vec<String> {
+    fn run_completer_script(&self, cmd: &str, cur: &str, prev: &str) -> Vec<String> {
         let Some(path) = self.custom_completion.get(cmd) else {
             return vec![];
         };
-        let Ok(output) = Command::new(path).output() else {
+        let Ok(output) = Command::new(path).arg(cmd).arg(cur).arg(prev).output() else {
             return vec![];
         };
         let result = String::from_utf8_lossy(&output.stdout);
@@ -120,11 +116,13 @@ impl Completer for ShellHelper {
             0
         };
 
-        let last_word = &partial[last_word_start..].trim_start();
+        let last_word = &partial[last_word_start..];
 
         if partial.ends_with(char::is_whitespace) {
-            if let Some(cmd) = Self::extract_command(trimmed) {
-                let completions = self.run_completer_script(cmd);
+            let mut commands = trimmed.split_whitespace();
+            if let (Some(cmd), Some(cur)) = (commands.next(), commands.next_back()) {
+                let prev = commands.next_back().unwrap_or("");
+                let completions = self.run_completer_script(cmd, cur, prev);
                 if completions.is_empty() {
                     return self.complete_filenames(line, pos, ctx);
                 }
