@@ -23,22 +23,63 @@ pub struct ShellHelper {
 }
 
 impl ShellHelper {
-    fn get_custom_output(&self, com: &str) -> Vec<u8> {
-        let Some(path) = self.custom_completion.get(com) else {
-            return vec![];
-        };
-
-        let prog = Command::new(path).output();
-        let Ok(output) = prog else { return vec![] };
-
-        output.stdout
+    fn extract_command(line: &str) -> Option<&str> {
+        line.split_whitespace().next()
     }
 
-    fn get_custom_completion(&self, com: &str) -> Vec<String> {
-        String::from_utf8_lossy(&self.get_custom_output(com))
-            .lines()
-            .map(|s| s.trim().to_string())
-            .collect()
+    fn run_completer_script(&self, cmd: &str) -> Vec<String> {
+        let Some(path) = self.custom_completion.get(cmd) else {
+            return vec![];
+        };
+        let Ok(output) = Command::new(path).output() else {
+            return vec![];
+        };
+        let result = String::from_utf8_lossy(&output.stdout);
+
+        result.lines().map(|s| s.trim().to_string()).collect()
+    }
+
+    fn complete_command(&self, partial: &str) -> Vec<Pair> {
+        let mut candidates = Vec::new();
+
+        for cmd in ["echo", "exit", "history"].iter() {
+            if cmd.starts_with(partial) {
+                candidates.push(Pair {
+                    display: cmd.to_string(),
+                    replacement: cmd.to_string(),
+                });
+            }
+        }
+
+        for cmd in PROGRAMS.as_slice() {
+            if cmd.starts_with(partial) {
+                candidates.push(Pair {
+                    display: cmd.clone(),
+                    replacement: cmd.clone(),
+                });
+            }
+        }
+
+        candidates
+    }
+
+    fn complete_filenames(
+        &self,
+        line: &str,
+        pos: usize,
+        ctx: &rustyline::Context<'_>,
+    ) -> rustyline::Result<(usize, Vec<Pair>)> {
+        let (start, mut complete) = self.completer.complete(line, pos, ctx)?;
+
+        for pair in complete.iter_mut() {
+            if pair.replacement.ends_with('/') {
+                pair.display.push('/');
+            } else if !pair.replacement.ends_with(' ') {
+                pair.replacement.push(' ');
+            }
+        }
+
+        Ok((start, complete))
     }
 }
 
@@ -51,7 +92,7 @@ impl Validator for ShellHelper {}
 impl Highlighter for ShellHelper {
     fn highlight_candidate<'c>(
         &self,
-        candidate: &'c str, // FIXME should be Completer::Candidate
+        candidate: &'c str,
         completion: CompletionType,
     ) -> Cow<'c, str> {
         let _ = completion;
@@ -63,73 +104,55 @@ impl Helper for ShellHelper {}
 
 impl Completer for ShellHelper {
     type Candidate = Pair;
-    // TODO: let the implementers choose/find word boundaries ??? => Lexer
 
-    /// Takes the currently edited `line` with the cursor `pos`ition and
-    /// returns the start position and the completion candidates for the
-    /// partial word to be completed.
-    ///
-    /// `("ls /usr/loc", 11)` => `Ok((3, vec!["/usr/local/"]))`
     fn complete(
-        &self, // FIXME should be `&mut self`
+        &self,
         line: &str,
         pos: usize,
         ctx: &rustyline::Context<'_>,
     ) -> rustyline::Result<(usize, Vec<Self::Candidate>)> {
-        let mut commands = vec![
-            String::from("echo"),
-            String::from("exit"),
-            String::from("history"),
-        ];
-        commands.extend_from_slice(PROGRAMS.as_slice());
+        let partial = &line[..pos];
+        let trimmed = partial.trim();
 
-        let mut com = commands
-            .into_iter()
-            .filter(|c| c.starts_with(&line[..pos]))
-            .map(|c| Pair {
-                display: c.clone(),
-                replacement: c,
-            })
-            .collect::<Vec<_>>();
+        let last_word_start = if let Some(space_pos) = partial.rfind(char::is_whitespace) {
+            space_pos + 1
+        } else {
+            0
+        };
 
-        let script = self.get_custom_completion(line[..pos].trim());
-        let script_pairs = script.into_iter().map(|s| Pair {
-            display: format!("{}{} ", &line[..pos], s),
-            replacement: s,
-        });
-        com.extend(script_pairs);
+        let last_word = &partial[last_word_start..].trim_start();
 
-        if com.is_empty() {
-            let (start, mut complete) = self.completer.complete(line, pos, ctx)?;
-
-            for pair in complete.iter_mut() {
-                if pair.replacement.ends_with('/') {
-                    pair.display.push('/');
-                }
-                if !pair.replacement.ends_with('/') && !pair.replacement.ends_with(' ') {
-                    pair.replacement.push(' ');
-                }
+        if partial.ends_with(char::is_whitespace) {
+            if let Some(cmd) = Self::extract_command(trimmed) {
+                let completions = self.run_completer_script(cmd);
+                return Ok((
+                    last_word_start,
+                    completions
+                        .into_iter()
+                        .map(|c| Pair {
+                            display: c.clone(),
+                            replacement: c,
+                        })
+                        .collect(),
+                ));
             }
 
-            Ok((start, complete))
+            return self.complete_filenames(line, pos, ctx);
+        }
+
+        let mut candidates = self.complete_command(last_word);
+
+        if candidates.is_empty() {
+            self.complete_filenames(line, pos, ctx)
         } else {
-            com.sort_unstable_by(|c1, c2| c1.display().cmp(c2.display()));
-            Ok((0, com))
+            candidates.sort_unstable_by(|c1, c2| c1.display().cmp(c2.display()));
+            Ok((last_word_start, candidates))
         }
     }
 
     fn update(&self, line: &mut LineBuffer, start: usize, elected: &str, cl: &mut Changeset) {
         let end = line.pos();
 
-        let mut commands = vec![String::from("echo"), String::from("exit")];
-        commands.extend_from_slice(PROGRAMS.as_slice());
-
-        let len = commands.iter().filter(|c| c.starts_with(elected)).count();
-
-        if len == 1 || elected == "echo" || elected == "exit" {
-            line.replace(start..end, &format!("{elected} "), cl);
-        } else {
-            line.replace(start..end, elected, cl);
-        }
+        line.replace(start..end, &format!("{elected} "), cl);
     }
 }
