@@ -181,6 +181,14 @@ fn main() -> anyhow::Result<()> {
                             .custom_completion
                             .insert(prog, path);
                     }
+                    "-r" => {
+                        let prog = args.next();
+                        let Some(prog) = prog else {
+                            anyhow::bail!("missing program name")
+                        };
+
+                        rl.helper_mut().unwrap().custom_completion.remove(&prog);
+                    }
                     _ => anyhow::bail!("invalid flag"),
                 };
             }
