@@ -125,13 +125,17 @@ impl Completer for ShellHelper {
         if partial.ends_with(char::is_whitespace) {
             if let Some(cmd) = Self::extract_command(trimmed) {
                 let completions = self.run_completer_script(cmd);
+                if completions.is_empty() {
+                    return self.complete_filenames(line, pos, ctx);
+                }
+
                 return Ok((
                     last_word_start,
                     completions
                         .into_iter()
                         .map(|c| Pair {
                             display: c.clone(),
-                            replacement: c,
+                            replacement: format!("{c} "),
                         })
                         .collect(),
                 ));
@@ -153,6 +157,14 @@ impl Completer for ShellHelper {
     fn update(&self, line: &mut LineBuffer, start: usize, elected: &str, cl: &mut Changeset) {
         let end = line.pos();
 
-        line.replace(start..end, &format!("{elected} "), cl);
+        let mut commands = vec![String::from("echo"), String::from("exit")];
+        commands.extend_from_slice(PROGRAMS.as_slice());
+        let len = commands.iter().filter(|c| c.starts_with(elected)).count();
+
+        if len == 1 || elected == "echo" || elected == "exit" {
+            line.replace(start..end, &format!("{elected} "), cl);
+        } else {
+            line.replace(start..end, elected, cl);
+        }
     }
 }
