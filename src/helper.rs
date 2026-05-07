@@ -120,6 +120,28 @@ impl Completer for ShellHelper {
 
         if partial.ends_with(char::is_whitespace) {
             let mut commands = trimmed.split_whitespace();
+            if let Some(cmd) = commands.next() {
+                let prev = commands.next_back().unwrap_or("");
+                let completions = self.run_completer_script(cmd, "", prev);
+                if completions.is_empty() {
+                    return self.complete_filenames(line, pos, ctx);
+                }
+
+                return Ok((
+                    last_word_start,
+                    completions
+                        .into_iter()
+                        .map(|c| Pair {
+                            display: c.clone(),
+                            replacement: format!("{c} "),
+                        })
+                        .collect(),
+                ));
+            }
+
+            self.complete_filenames(line, pos, ctx)
+        } else {
+            let mut commands = trimmed.split_whitespace();
             if let (Some(cmd), Some(cur)) = (commands.next(), commands.next_back()) {
                 let prev = commands.next_back().unwrap_or("");
                 let completions = self.run_completer_script(cmd, cur, prev);
@@ -139,16 +161,14 @@ impl Completer for ShellHelper {
                 ));
             }
 
-            return self.complete_filenames(line, pos, ctx);
-        }
+            let mut candidates = self.complete_command(last_word);
 
-        let mut candidates = self.complete_command(last_word);
-
-        if candidates.is_empty() {
-            self.complete_filenames(line, pos, ctx)
-        } else {
-            candidates.sort_unstable_by(|c1, c2| c1.display().cmp(c2.display()));
-            Ok((last_word_start, candidates))
+            if candidates.is_empty() {
+                self.complete_filenames(line, pos, ctx)
+            } else {
+                candidates.sort_unstable_by(|c1, c2| c1.display().cmp(c2.display()));
+                Ok((last_word_start, candidates))
+            }
         }
     }
 
