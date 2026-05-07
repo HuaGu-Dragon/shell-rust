@@ -135,11 +135,12 @@ impl Completer for ShellHelper {
         if partial.ends_with(char::is_whitespace) {
             let mut commands = trimmed.split_whitespace();
             if let Some(cmd) = commands.next() {
-                let prev = commands.next_back().unwrap_or("");
-                let completions = self.run_completer_script(cmd, "", prev, line, pos);
+                let prev = commands.next_back().unwrap_or(cmd);
+                let mut completions = self.run_completer_script(cmd, "", prev, line, pos);
                 if completions.is_empty() {
                     return self.complete_filenames(line, pos, ctx);
                 }
+                completions.sort_unstable();
 
                 return Ok((
                     last_word_start,
@@ -157,7 +158,7 @@ impl Completer for ShellHelper {
         } else {
             let mut commands = trimmed.split_whitespace();
             if let (Some(cmd), Some(cur)) = (commands.next(), commands.next_back()) {
-                let prev = commands.next_back().unwrap_or("");
+                let prev = commands.next_back().unwrap_or(cmd);
                 let completions = self.run_completer_script(cmd, cur, prev, line, pos);
                 if completions.is_empty() {
                     return self.complete_filenames(line, pos, ctx);
