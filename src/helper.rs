@@ -23,11 +23,25 @@ pub struct ShellHelper {
 }
 
 impl ShellHelper {
-    fn run_completer_script(&self, cmd: &str, cur: &str, prev: &str) -> Vec<String> {
+    fn run_completer_script(
+        &self,
+        cmd: &str,
+        cur: &str,
+        prev: &str,
+        line: &str,
+        pos: usize,
+    ) -> Vec<String> {
         let Some(path) = self.custom_completion.get(cmd) else {
             return vec![];
         };
-        let Ok(output) = Command::new(path).arg(cmd).arg(cur).arg(prev).output() else {
+        let Ok(output) = Command::new(path)
+            .arg(cmd)
+            .arg(cur)
+            .arg(prev)
+            .env("COMP_LINE", line)
+            .env("COMP_POINT", pos.to_string())
+            .output()
+        else {
             return vec![];
         };
         let result = String::from_utf8_lossy(&output.stdout);
@@ -122,7 +136,7 @@ impl Completer for ShellHelper {
             let mut commands = trimmed.split_whitespace();
             if let Some(cmd) = commands.next() {
                 let prev = commands.next_back().unwrap_or("");
-                let completions = self.run_completer_script(cmd, "", prev);
+                let completions = self.run_completer_script(cmd, "", prev, line, pos);
                 if completions.is_empty() {
                     return self.complete_filenames(line, pos, ctx);
                 }
@@ -144,7 +158,7 @@ impl Completer for ShellHelper {
             let mut commands = trimmed.split_whitespace();
             if let (Some(cmd), Some(cur)) = (commands.next(), commands.next_back()) {
                 let prev = commands.next_back().unwrap_or("");
-                let completions = self.run_completer_script(cmd, cur, prev);
+                let completions = self.run_completer_script(cmd, cur, prev, line, pos);
                 if completions.is_empty() {
                     return self.complete_filenames(line, pos, ctx);
                 }
