@@ -61,6 +61,7 @@ enum Command {
     History,
     Jobs,
     Complete,
+    Declare,
     Program(PathBuf),
 }
 
@@ -148,6 +149,7 @@ fn main() -> anyhow::Result<()> {
                     println!("{arg}");
                 }
             }
+            Some(Command::Declare) => {}
             Some(Command::Complete) => {
                 let flag = args.next();
                 let Some(flag) = flag else {
@@ -322,6 +324,7 @@ fn command_type(com: &str) -> Option<Command> {
         "type" => Some(Command::Type),
         "jobs" => Some(Command::Jobs),
         "complete" => Some(Command::Complete),
+        "declare" => Some(Command::Declare),
         _ => std::env::var_os("PATH").and_then(|paths| {
             for path in std::env::split_paths(&paths) {
                 if path.is_dir() {
@@ -433,7 +436,8 @@ fn execute_pipeline(commands: &[&str]) -> anyhow::Result<()> {
             | Some(Command::History)
             | Some(Command::Exit)
             | Some(Command::Jobs)
-            | Some(Command::Complete) => {
+            | Some(Command::Complete)
+            | Some(Command::Declare) => {
                 anyhow::bail!("{} cannot be used in pipelines", com);
             }
             None => {
