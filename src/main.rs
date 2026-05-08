@@ -149,7 +149,19 @@ fn main() -> anyhow::Result<()> {
                     println!("{arg}");
                 }
             }
-            Some(Command::Declare) => {}
+            Some(Command::Declare) => match args.next() {
+                Some(next) => match &next[..] {
+                    "-p" => {
+                        let var = args.next();
+                        let Some(var) = var else {
+                            anyhow::bail!("missing variable")
+                        };
+                        println!("declare: {var}: not found");
+                    }
+                    _ => todo!(),
+                },
+                None => todo!(),
+            },
             Some(Command::Complete) => {
                 let flag = args.next();
                 let Some(flag) = flag else {
