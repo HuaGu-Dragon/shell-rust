@@ -167,7 +167,23 @@ fn main() -> anyhow::Result<()> {
                         let Some((var, val)) = next.split_once('=') else {
                             anyhow::bail!("unvalid expression, expected <var>=<val>")
                         };
-                        decls.insert(var.to_string(), val.to_string());
+
+                        // TODO: use regex
+                        fn is_valid_var(var: &str) -> bool {
+                            let mut chars = var.chars();
+                            chars
+                                .next()
+                                .is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
+                                && chars.all(|c| {
+                                    c.is_ascii_alphabetic() || c == '_' || c.is_ascii_digit()
+                                })
+                        }
+
+                        if !is_valid_var(var) {
+                            println!("declare: `{next}': not a valid identifier")
+                        } else {
+                            decls.insert(var.to_string(), val.to_string());
+                        }
                     }
                 },
                 None => todo!(),
