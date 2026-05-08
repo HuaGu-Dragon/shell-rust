@@ -649,7 +649,7 @@ impl Iterator for &mut Parser<'_, '_> {
 
         // TODO: Handle error
         if let Some(idx) = next.find("$")
-            && let Some(value) = self.decls.get(&next[idx..])
+            && let Some(value) = self.decls.get(&next[idx.saturating_add(1)..])
         {
             next = format!("{}{}", &next[..idx], value);
         } else if next == ">" || next == "1>" {
