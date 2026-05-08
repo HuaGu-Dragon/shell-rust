@@ -89,6 +89,7 @@ fn main() -> anyhow::Result<()> {
     rl.set_helper(Some(h));
 
     let mut jobs: Vec<Job> = vec![];
+    let mut decls: HashMap<String, String> = HashMap::new();
 
     loop {
         let n = jobs.len();
@@ -156,9 +157,18 @@ fn main() -> anyhow::Result<()> {
                         let Some(var) = var else {
                             anyhow::bail!("missing variable")
                         };
-                        println!("declare: {var}: not found");
+                        if let Some(val) = decls.get(&var) {
+                            println!("declare -- {var}=\"{val}\"");
+                        } else {
+                            println!("declare: {var}: not found");
+                        }
                     }
-                    _ => todo!(),
+                    _ => {
+                        let Some((var, val)) = next.split_once('=') else {
+                            anyhow::bail!("unvalid expression, expected <var>=<val>")
+                        };
+                        decls.insert(var.to_string(), val.to_string());
+                    }
                 },
                 None => todo!(),
             },
