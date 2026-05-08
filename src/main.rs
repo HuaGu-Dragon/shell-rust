@@ -142,7 +142,7 @@ fn main() -> anyhow::Result<()> {
 
         match command {
             Some(Command::Echo) => {
-                let mut args = Parser::new(args);
+                let mut args = Parser::new(args, &decls);
                 let arg = args.collect::<Vec<_>>().join(" ");
                 if let Some(mut stdin) = args.stdout {
                     writeln!(&mut stdin, "{arg}").context("write to file")?;
@@ -326,7 +326,7 @@ fn main() -> anyhow::Result<()> {
                 }
             }
             Some(Command::Program(ref path)) => {
-                run_command(path, &com, Parser::new(args), raw_com, &mut jobs)?
+                run_command(path, &com, Parser::new(args, &decls), raw_com, &mut jobs)?
             }
             Some(Command::Exit) => break,
             Some(Command::Type) => {
@@ -621,32 +621,38 @@ fn run_command(
     Ok(())
 }
 
-struct Parser<'de> {
+struct Parser<'de, 'a> {
     stdout: Option<File>,
     stderr: Option<File>,
     shlex: Shlex<'de>,
     background: bool,
+    decls: &'a HashMap<String, String>,
 }
 
-impl<'de> Parser<'de> {
-    fn new(input: Shlex<'de>) -> Self {
+impl<'de, 'a> Parser<'de, 'a> {
+    fn new(input: Shlex<'de>, decls: &'a HashMap<String, String>) -> Self {
         Self {
             stdout: None,
             stderr: None,
             shlex: input,
             background: false,
+            decls,
         }
     }
 }
 
-impl Iterator for &mut Parser<'_> {
+impl Iterator for &mut Parser<'_, '_> {
     type Item = String;
 
     fn next(&mut self) -> Option<Self::Item> {
         let mut next = self.shlex.next()?;
 
         // TODO: Handle error
-        if next == ">" || next == "1>" {
+        if next.starts_with("$")
+            && let Some(value) = self.decls.get(&next[1..])
+        {
+            next = value.clone();
+        } else if next == ">" || next == "1>" {
             self.stdout = Some(File::create(self.shlex.next()?).unwrap());
             next = self.shlex.next()?;
         } else if next == "2>" {
