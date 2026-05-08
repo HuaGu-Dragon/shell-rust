@@ -648,10 +648,23 @@ impl Iterator for &mut Parser<'_, '_> {
         let mut next = self.shlex.next()?;
 
         // TODO: Handle error
-        if let Some(idx) = next.find("$")
-            && let Some(value) = self.decls.get(&next[idx.saturating_add(1)..])
-        {
-            next = format!("{}{}", &next[..idx], value);
+        if let Some(idx) = next.find("$") {
+            let mut result = String::from(&next[..idx]);
+            let mats = next[idx.saturating_add(1)..].split("$");
+            for mut mat in mats {
+                if mat.starts_with('{') {
+                    mat = &mat[1..];
+                }
+                if mat.ends_with('}') {
+                    mat = &mat[..mat.len().saturating_sub(1)];
+                }
+
+                if let Some(value) = self.decls.get(mat) {
+                    result.push_str(value);
+                }
+            }
+
+            next = result;
         } else if next == ">" || next == "1>" {
             self.stdout = Some(File::create(self.shlex.next()?).unwrap());
             next = self.shlex.next()?;
