@@ -654,9 +654,13 @@ impl Iterator for &mut Parser<'_, '_> {
             for mut mat in mats {
                 if mat.starts_with('{') {
                     mat = &mat[1..];
-                }
-                if mat.ends_with('}') {
-                    mat = &mat[..mat.len().saturating_sub(1)];
+                    if let Some(end) = mat.find('}') {
+                        if let Some(value) = self.decls.get(&mat[..end]) {
+                            result.push_str(value);
+                        }
+                        result.push_str(&mat[end.saturating_add(1)..]);
+                        continue;
+                    }
                 }
 
                 if let Some(value) = self.decls.get(mat) {
